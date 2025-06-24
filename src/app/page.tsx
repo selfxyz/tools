@@ -201,9 +201,9 @@ export default function Home() {
             params: [{ chainId: NETWORKS[networkKey].chainId }],
           });
           alert(`Successfully switched to ${NETWORKS[networkKey].chainName}`);
-        } catch (switchError: any) {
+        } catch (switchError: unknown) {
           // If the network doesn't exist, add it
-          if (switchError.code === 4902) {
+          if ((switchError as { code?: number }).code === 4902) {
             await window.ethereum.request({
               method: 'wallet_addEthereumChain',
               params: [NETWORKS[networkKey]],
@@ -216,9 +216,9 @@ export default function Home() {
       } else {
         alert('Please install MetaMask to add networks');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error adding network:', error);
-      alert(`Failed to add network to MetaMask: ${error.message || 'Unknown error'}`);
+      alert(`Failed to add network to MetaMask: ${(error as Error).message || 'Unknown error'}`);
     }
   };
 
@@ -264,7 +264,7 @@ export default function Home() {
       setGeneratedConfigId(configId);
       setConfigSuccess('Verification config set successfully!');
       setTimeout(() => setConfigSuccess(''), 5000); // Only clear success message, keep config ID
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error setting verification config:', error);
       let errorMessage = (error as Error).message;
 
@@ -301,15 +301,15 @@ export default function Home() {
       try {
         config = await contract.getVerificationConfigV2(readConfigId);
         functionUsed = 'getVerificationConfigV2';
-      } catch (e1) {
+      } catch {
         try {
           config = await contract.verificationConfigs(readConfigId);
           functionUsed = 'verificationConfigs';
-        } catch (e2) {
+        } catch {
           try {
             config = await contract.getVerificationConfig(readConfigId);
             functionUsed = 'getVerificationConfig';
-          } catch (e3) {
+          } catch {
             throw new Error('None of the expected getter functions exist on this contract. Tried: getVerificationConfigV2, verificationConfigs, getVerificationConfig');
           }
         }
@@ -331,7 +331,7 @@ export default function Home() {
       // Show which function worked in the console
       console.log(`Successfully read config using function: ${functionUsed}`);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error reading verification config:', error);
       let errorMessage = (error as Error).message;
 
@@ -535,7 +535,7 @@ export default function Home() {
           <div className="p-3 bg-yellow-50 border border-yellow-200 rounded mb-6">
             <p className="text-sm text-yellow-800">
               ⚠️ <strong>Important:</strong> Only the contract owner can set verification configs.
-              Make sure you're connected with the owner wallet address.
+              Make sure you&apos;re connected with the owner wallet address.
             </p>
           </div>
 
