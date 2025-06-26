@@ -396,6 +396,41 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Mock Passport & App Install Sections */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Mock Passport Section */}
+          <div>
+            <div className="bg-blue-50 rounded-lg p-6 border border-blue-200 ">
+              <h2 className="text-xl font-semibold text-black mb-4">🆔 Don't have a biometric passport?</h2>
+              <p className="text-gray-700">
+                Learn how to generate a mock one in the Self app.{' '}
+                <a
+                  href="https://docs.self.xyz/use-self/using-mock-passports"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 underline hover:text-blue-800"
+                >
+                  Read the documentation
+                </a>
+              </p>
+            </div>
+          </div>
+
+          {/* App Install Section */}
+          <div className="bg-green-50 rounded-lg p-6 border border-green-200">
+            <h2 className="text-xl font-semibold text-black mb-8">📱 Install the Self App</h2>
+            <div className="text-center">
+              <div className="bg-white p-4 rounded-lg border border-gray-200 mb-3 inline-block">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent('https://redirect.self.xyz')}`}
+                  alt="QR Code to install Self app"
+                  className="mx-auto"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Wallet Connection Section */}
         <div className="bg-gray-50 rounded-xl border border-gray-200 p-8 shadow-sm">
           <h2 className="text-2xl font-semibold text-black mb-6">🔗 Wallet Connection</h2>
