@@ -63,6 +63,12 @@ export default function Home() {
   const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
   const [signer, setSigner] = useState<ethers.JsonRpcSigner | null>(null);
 
+  // Default hub addresses
+  const DEFAULT_HUB_ADDRESSES = {
+    celo: '0xe57F4773bd9c9d8b6Cd70431117d353298B9f5BF',
+    alfajores: '0x68c931C9a534D37aa78094877F46fE46a49F1A51'
+  };
+
   // Verification config state
   const [hubContractAddress, setHubContractAddress] = useState('');
   const [olderThanEnabled, setOlderThanEnabled] = useState(false);
@@ -278,8 +284,8 @@ export default function Home() {
   };
 
   const readVerificationConfig = async () => {
-    if (!provider || !hubContractAddress) {
-      setReadConfigError('Please connect wallet and enter hub contract address');
+    if (!hubContractAddress) {
+      setReadConfigError('Please enter a hub contract address');
       return;
     }
 
@@ -292,7 +298,9 @@ export default function Home() {
       setReadConfigError('');
       setReadConfigResult(null);
 
-      const contract = new ethers.Contract(hubContractAddress, HUB_CONTRACT_ABI, provider);
+      // Create a provider for reading (no wallet connection needed for view functions)
+      const readProvider = new ethers.JsonRpcProvider('https://forno.celo.org');
+      const contract = new ethers.Contract(hubContractAddress, HUB_CONTRACT_ABI, readProvider);
 
       // Try different possible function names
       let config;
@@ -350,57 +358,111 @@ export default function Home() {
 
         {/* Header */}
         <div className="text-center">
-          <h1 className="text-4xl font-bold text-black mb-4">
-            Self.xyz Verification Tools
-          </h1>
-          <p className="text-gray-600">
-            Tools for managing verification configurations and generating scope hashes
-          </p>
+          <div className="flex items-center justify-center mb-6">
+            <img src="/self_logo.svg" alt="Self Logo" className="h-12 w-12 mr-3" />
+            <h1 className="text-4xl font-bold text-black">
+              Self Developer Tools
+            </h1>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex justify-center gap-4 flex-wrap">
+            <a
+              href="https://github.com/selfxyz/self"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors"
+            >
+              <img src="/github.png" alt="GitHub" className="h-5 w-5 mr-2 rounded-full" color="white" />
+              Star on GitHub
+            </a>
+            <a
+              href="https://docs.self.xyz"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              📚 Documentation
+            </a>
+            <a
+              href="https://t.me/selfbuilder"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              <img src="/telegram.webp" alt="Telegram" className="h-5 w-5 mr-2" />
+              Builder Channel
+            </a>
+          </div>
         </div>
 
         {/* Wallet Connection Section */}
-        <div className="bg-gray-50 rounded-lg p-6 border">
-          <h2 className="text-2xl font-semibold text-black mb-4">🔗 Wallet Connection</h2>
-          <p className="text-gray-600 mb-4">
-            Connect your wallet to interact with verification contracts
-          </p>
+        <div className="bg-gray-50 rounded-xl border border-gray-200 p-8 shadow-sm">
+          <h2 className="text-2xl font-semibold text-black mb-6">🔗 Wallet Connection</h2>
 
-          <div className="space-y-4">
+          {/* Wallet Status */}
+          <div className="mb-8">
             {!isConnected ? (
-              <button
-                onClick={connectWallet}
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Connect Wallet
-              </button>
-            ) : (
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Connected Address:</p>
-                  <p className="font-mono text-sm text-black">{walletAddress}</p>
-                </div>
+              <div className="text-center">
                 <button
-                  onClick={disconnectWallet}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  onClick={connectWallet}
+                  className="flex items-center justify-center px-6 py-3 text-white bg-black rounded-lg hover:bg-gray-800 transition-colors hover:cursor-pointer font-medium"
                 >
-                  Disconnect
+                  Connect Wallet
                 </button>
               </div>
+            ) : (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-green-700 font-medium mb-1">Connected Wallet</p>
+                    <p className="font-mono text-sm text-green-800">{walletAddress}</p>
+                  </div>
+                  <button
+                    onClick={disconnectWallet}
+                    className="flex items-center px-4 py-2 text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors hover:cursor-pointer"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              </div>
             )}
+          </div>
 
-            <div className="flex gap-4">
+          {/* Mainnet & Testnet Side by Side */}
+          <div className="flex flex-row gap-12">
+            {/* Mainnet */}
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 mb-3">Mainnet</h3>
               <button
                 onClick={() => addNetworkToMetaMask('celo')}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                className="flex items-center px-4 py-3 text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors hover:cursor-pointer"
               >
-                Add Celo Network
+                <img src="/celo.webp" alt="Celo" className="h-6 w-6 mr-3 rounded-full" />
+                <span className="font-medium">Switch to Celo</span>
               </button>
-              <button
-                onClick={() => addNetworkToMetaMask('alfajores')}
-                className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
-              >
-                Add Alfajores Testnet
-              </button>
+            </div>
+
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 mb-3">Testnet</h3>
+              <div className="flex flex-row gap-5">
+                <button
+                  onClick={() => addNetworkToMetaMask('alfajores')}
+                  className="flex items-center px-4 py-3 text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors hover:cursor-pointer"
+                >
+                  <img src="/celo_testnet.webp" alt="Celo Testnet" className="h-6 w-6 mr-3 rounded-full" />
+                  <span className="font-medium">Switch to Celo Testnet</span>
+                </button>
+                <a
+                  href="https://faucet.celo.org"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center w-fit px-4 py-3 text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors hover:cursor-pointer"
+                >
+                  <span className="mr-2">🚰</span>
+                  <span className="font-medium">Get Testnet Funds</span>
+                </a>
+              </div>
             </div>
           </div>
         </div>
@@ -408,15 +470,19 @@ export default function Home() {
         {/* Scope Generator Section (Existing) */}
         <div className="bg-gray-50 rounded-lg p-6 border">
           <h2 className="text-2xl font-semibold text-black mb-4">🔧 Scope Generator</h2>
-          <p className="text-gray-600 mb-6">
-            Generate scope hashes for verification endpoints
+          <p className="text-gray-600 ">
+            Hash the Scope seed 🌱 with the address or DNS to generate the Scope.
           </p>
+          <p className="text-gray-600 mb-6">
+            The scope is the final value you want to set in your Self Verification contract.
+          </p>
+
 
           <div className="max-w-md mx-auto space-y-6">
             <div className="space-y-4">
               {/* Address Input */}
               <div>
-                <label htmlFor="address" className="block text-sm font-medium text-black mb-2">
+                <label className="block text-sm font-medium text-black mb-2">
                   Address or URL
                 </label>
                 <input
@@ -439,8 +505,8 @@ export default function Home() {
 
               {/* Scope Input */}
               <div>
-                <label htmlFor="scope" className="block text-sm font-medium text-black mb-2">
-                  Scope
+                <label className="block text-sm font-medium text-black mb-2">
+                  Scope seed 🌱
                 </label>
                 <input
                   id="scope"
@@ -481,7 +547,7 @@ export default function Home() {
                   )}
                 </p>
                 <p>
-                  <span className="font-medium text-black">Scope:</span>{' '}
+                  <span className="font-medium text-black">Scope seed:</span>{' '}
                   <span className={isScopeValid ? 'text-green-600' : 'text-gray-600'}>
                     {scope || 'Not set'}
                   </span>
@@ -492,7 +558,7 @@ export default function Home() {
                 {hashedEndpoint && (
                   <div className="mt-4 pt-4 border-t border-gray-200">
                     <div className="flex items-center justify-between mb-2">
-                      <p className="font-medium text-black">Generated Hash:</p>
+                      <p className="font-medium text-black">Scope Value:</p>
                       {areBothValid && (
                         <button
                           onClick={copyToClipboard}
@@ -529,15 +595,9 @@ export default function Home() {
         {/* Set Verification Config Section */}
         <div className="bg-gray-50 rounded-lg p-6 border">
           <h2 className="text-2xl font-semibold text-black mb-4">⚙️ Set Verification Config</h2>
-          <p className="text-gray-600 mb-4">
+          <p className="text-gray-600 mb-6">
             Configure verification parameters and deploy to the hub contract
           </p>
-          <div className="p-3 bg-yellow-50 border border-yellow-200 rounded mb-6">
-            <p className="text-sm text-yellow-800">
-              ⚠️ <strong>Important:</strong> Only the contract owner can set verification configs.
-              Make sure you&apos;re connected with the owner wallet address.
-            </p>
-          </div>
 
           <div className="space-y-4">
             {/* Hub Contract Address */}
@@ -550,9 +610,76 @@ export default function Home() {
                 type="text"
                 value={hubContractAddress}
                 onChange={(e) => setHubContractAddress(e.target.value)}
-                placeholder="0x..."
+                placeholder="Enter hub contract address or use defaults below"
                 className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
               />
+
+              {/* Default Hub Addresses */}
+              <div className="mt-3 space-y-2">
+                <p className="text-sm font-medium text-gray-700">Default Hub Addresses:</p>
+
+                <div className="flex items-center justify-between bg-white border rounded-lg p-3">
+                  <div>
+                    <div className="flex items-center">
+                      <img src="/celo.webp" alt="Celo" className="h-5 w-6 mr-2 rounded-full" />
+                      <span className="font-medium text-sm text-black">Celo:</span>
+                    </div>
+                    <code className="text-xs text-gray-600 font-mono">{DEFAULT_HUB_ADDRESSES.celo}</code>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setHubContractAddress(DEFAULT_HUB_ADDRESSES.celo)}
+                      className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                    >
+                      Use
+                    </button>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(DEFAULT_HUB_ADDRESSES.celo)}
+                      className="px-3 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between bg-white border rounded-lg p-3">
+                  <div>
+                    <div className="flex items-center">
+                      <img src="/celo_testnet.webp" alt="Celo Testnet" className="h-5 w-6 mr-2 rounded-full" />
+                      <span className="font-medium text-sm text-black">Celo Testnet:</span>
+                    </div>
+                    <code className="text-xs text-gray-600 font-mono">{DEFAULT_HUB_ADDRESSES.alfajores}</code>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setHubContractAddress(DEFAULT_HUB_ADDRESSES.alfajores)}
+                      className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                    >
+                      Use
+                    </button>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(DEFAULT_HUB_ADDRESSES.alfajores)}
+                      className="px-3 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-2 bg-blue-50 border border-blue-200 rounded">
+                  <p className="text-xs text-blue-700">
+                    💡 <strong>Hint:</strong> Double-check these hub addresses with the ones in the{' '}
+                    <a
+                      href="https://docs.self.xyz"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-800 underline hover:text-blue-900"
+                    >
+                      official documentation
+                    </a>
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* Age Verification */}
@@ -688,7 +815,7 @@ export default function Home() {
         <div className="bg-gray-50 rounded-lg p-6 border">
           <h2 className="text-2xl font-semibold text-black mb-4">📖 Read Verification Config</h2>
           <p className="text-gray-600 mb-6">
-            Read verification configuration by config ID from the hub contract
+            Read verification configuration by config ID from the hub contract (no wallet connection required)
           </p>
 
           <div className="space-y-4">
@@ -708,10 +835,9 @@ export default function Home() {
 
             <button
               onClick={readVerificationConfig}
-              disabled={!isConnected}
-              className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+              className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
             >
-              {isConnected ? 'Read Config' : 'Connect Wallet First'}
+              Read Config
             </button>
 
             {readConfigError && (
