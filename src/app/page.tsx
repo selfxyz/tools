@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { hashEndpointWithScope } from '@selfxyz/core';
 import { ethers } from 'ethers';
+import Image from 'next/image';
 
 // Types
 interface VerificationConfigV2 {
@@ -60,6 +61,7 @@ export default function Home() {
   // Wallet state
   const [walletAddress, setWalletAddress] = useState('');
   const [isConnected, setIsConnected] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
   const [signer, setSigner] = useState<ethers.JsonRpcSigner | null>(null);
 
@@ -172,12 +174,12 @@ export default function Home() {
   const connectWallet = async () => {
     try {
       if (typeof window.ethereum !== 'undefined') {
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        await provider.send("eth_requestAccounts", []);
-        const signer = await provider.getSigner();
+        const browserProvider = new ethers.BrowserProvider(window.ethereum);
+        await browserProvider.send("eth_requestAccounts", []);
+        const signer = await browserProvider.getSigner();
         const address = await signer.getAddress();
 
-        setProvider(provider);
+        setProvider(browserProvider);
         setSigner(signer);
         setWalletAddress(address);
         setIsConnected(true);
@@ -359,7 +361,7 @@ export default function Home() {
         {/* Header */}
         <div className="text-center">
           <div className="flex items-center justify-center mb-6">
-            <img src="/self_logo.svg" alt="Self Logo" className="h-12 w-12 mr-3" />
+            <Image src="/self_logo.svg" alt="Self Logo" width={48} height={48} className="h-12 w-12 mr-3" />
             <h1 className="text-4xl font-bold text-black">
               Self Developer Tools
             </h1>
@@ -373,7 +375,7 @@ export default function Home() {
               rel="noopener noreferrer"
               className="flex items-center px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors"
             >
-              <img src="/github.png" alt="GitHub" className="h-5 w-5 mr-2 rounded-full" color="white" />
+              <Image src="/github.png" alt="GitHub" width={20} height={20} className="h-5 w-5 mr-2 rounded-full" />
               Star on GitHub
             </a>
             <a
@@ -390,7 +392,7 @@ export default function Home() {
               rel="noopener noreferrer"
               className="flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
             >
-              <img src="/telegram.webp" alt="Telegram" className="h-5 w-5 mr-2" />
+              <Image src="/telegram.webp" alt="Telegram" width={20} height={20} className="h-5 w-5 mr-2" />
               Builder Channel
             </a>
           </div>
@@ -401,7 +403,7 @@ export default function Home() {
           {/* Mock Passport Section */}
           <div>
             <div className="bg-blue-50 rounded-lg p-6 border border-blue-200 ">
-              <h2 className="text-xl font-semibold text-black mb-4">🆔 Don't have a biometric passport?</h2>
+              <h2 className="text-xl font-semibold text-black mb-4">🆔 Don&apos;t have a biometric passport?</h2>
               <p className="text-gray-700">
                 Learn how to generate a mock one in the Self app.{' '}
                 <a
@@ -421,9 +423,11 @@ export default function Home() {
             <h2 className="text-xl font-semibold text-black mb-8">📱 Install the Self App</h2>
             <div className="text-center">
               <div className="bg-white p-4 rounded-lg border border-gray-200 mb-3 inline-block">
-                <img
+                <Image
                   src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent('https://redirect.self.xyz')}`}
                   alt="QR Code to install Self app"
+                  width={200}
+                  height={200}
                   className="mx-auto"
                 />
               </div>
@@ -473,7 +477,7 @@ export default function Home() {
                 onClick={() => addNetworkToMetaMask('celo')}
                 className="flex items-center px-4 py-3 text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors hover:cursor-pointer"
               >
-                <img src="/celo.webp" alt="Celo" className="h-6 w-6 mr-3 rounded-full" />
+                <Image src="/celo.webp" alt="Celo" width={24} height={24} className="h-6 w-6 mr-3 rounded-full" />
                 <span className="font-medium">Switch to Celo</span>
               </button>
             </div>
@@ -485,7 +489,7 @@ export default function Home() {
                   onClick={() => addNetworkToMetaMask('alfajores')}
                   className="flex items-center px-4 py-3 text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors hover:cursor-pointer"
                 >
-                  <img src="/celo_testnet.webp" alt="Celo Testnet" className="h-6 w-6 mr-3 rounded-full" />
+                  <Image src="/celo_testnet.webp" alt="Celo Testnet" width={24} height={24} className="h-6 w-6 mr-3 rounded-full" />
                   <span className="font-medium">Switch to Celo Testnet</span>
                 </button>
                 <a
@@ -656,7 +660,7 @@ export default function Home() {
                 <div className="flex items-center justify-between bg-white border rounded-lg p-3">
                   <div>
                     <div className="flex items-center">
-                      <img src="/celo.webp" alt="Celo" className="h-5 w-6 mr-2 rounded-full" />
+                      <Image src="/celo.webp" alt="Celo" width={20} height={24} className="h-5 w-6 mr-2 rounded-full" />
                       <span className="font-medium text-sm text-black">Celo:</span>
                     </div>
                     <code className="text-xs text-gray-600 font-mono">{DEFAULT_HUB_ADDRESSES.celo}</code>
@@ -680,7 +684,7 @@ export default function Home() {
                 <div className="flex items-center justify-between bg-white border rounded-lg p-3">
                   <div>
                     <div className="flex items-center">
-                      <img src="/celo_testnet.webp" alt="Celo Testnet" className="h-5 w-6 mr-2 rounded-full" />
+                      <Image src="/celo_testnet.webp" alt="Celo Testnet" width={20} height={24} className="h-5 w-6 mr-2 rounded-full" />
                       <span className="font-medium text-sm text-black">Celo Testnet:</span>
                     </div>
                     <code className="text-xs text-gray-600 font-mono">{DEFAULT_HUB_ADDRESSES.alfajores}</code>
