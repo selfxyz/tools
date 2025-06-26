@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { hashEndpointWithScope } from '@selfxyz/core';
 import { ethers } from 'ethers';
 import Image from 'next/image';
+import { QRCodeSVG } from 'qrcode.react';
 
 // Types
 interface VerificationConfigV2 {
@@ -423,12 +424,11 @@ export default function Home() {
             <h2 className="text-xl font-semibold text-black mb-8">📱 Install the Self App</h2>
             <div className="text-center">
               <div className="bg-white p-4 rounded-lg border border-gray-200 mb-3 inline-block">
-                <Image
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent('https://redirect.self.xyz')}`}
-                  alt="QR Code to install Self app"
-                  width={200}
-                  height={200}
-                  className="mx-auto"
+                <QRCodeSVG
+                  value="https://redirect.self.xyz"
+                  size={200}
+                  level="M"
+                  includeMargin={false}
                 />
               </div>
             </div>
