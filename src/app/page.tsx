@@ -52,11 +52,8 @@ export default function Home() {
   const [copySuccess, setCopySuccess] = useState(false);
 
   // Wallet state
-  const [walletAddress, setWalletAddress] = useState('');
-  const [isConnected, setIsConnected] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
-  const [signer, setSigner] = useState<ethers.JsonRpcSigner | null>(null);
 
   // Default hub addresses and RPC URLs
   const DEFAULT_HUB_ADDRESSES = {
@@ -95,7 +92,6 @@ export default function Home() {
   }>({ message: '', type: 'info', show: false });
 
   // Loading states for better UX
-  const [isConnecting, setIsConnecting] = useState(false);
   const [isNetworkSwitching, setIsNetworkSwitching] = useState(false);
   const [isConfigDeploying, setIsConfigDeploying] = useState(false);
   const [isConfigReading, setIsConfigReading] = useState(false);
@@ -260,38 +256,7 @@ export default function Home() {
     }
   };
 
-  // New wallet functions
-  const connectWallet = async () => {
-    setIsConnecting(true);
-    try {
-      if (typeof window.ethereum !== 'undefined') {
-        const browserProvider = new ethers.BrowserProvider(window.ethereum);
-        await browserProvider.send("eth_requestAccounts", []);
-        const signer = await browserProvider.getSigner();
-        const address = await signer.getAddress();
 
-        setProvider(browserProvider);
-        setSigner(signer);
-        setWalletAddress(address);
-        setIsConnected(true);
-        showToast('Wallet connected successfully! 🎉', 'success');
-      } else {
-        showToast('Please install MetaMask to connect your wallet', 'error');
-      }
-    } catch (error) {
-      console.error('Error connecting wallet:', error);
-      showToast('Failed to connect wallet', 'error');
-    } finally {
-      setIsConnecting(false);
-    }
-  };
-
-  const disconnectWallet = () => {
-    setProvider(null);
-    setSigner(null);
-    setWalletAddress('');
-    setIsConnected(false);
-  };
 
   const addNetworkToMetaMask = async (networkKey: 'celo' | 'alfajores') => {
     setIsNetworkSwitching(true);
