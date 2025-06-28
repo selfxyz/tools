@@ -6,6 +6,7 @@ import { ethers } from 'ethers';
 import Image from 'next/image';
 import { QRCodeSVG } from 'qrcode.react';
 import { HUB_CONTRACT_ABI } from '../contracts/hubABI';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 
 // Types
 interface VerificationConfigV2 {
@@ -722,60 +723,26 @@ export default function Home() {
 
         {/* Wallet Connection Section */}
         <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-6 mb-8 sm:mb-12 shadow-sm mx-2 sm:mx-0">
-                      <div className="flex items-center mb-4 sm:mb-6">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-[#5BFFB6] to-[#4AE6A0] rounded-lg flex items-center justify-center mr-3 animate-bounce hover:animate-none">
-                <span className="text-base sm:text-lg">🔗</span>
-              </div>
-              <div>
-                <h2 className="text-lg sm:text-xl font-bold text-black">Wallet Connection</h2>
-                <p className="text-gray-600 text-xs sm:text-sm">Connect your wallet to interact with Self contracts</p>
-              </div>
+          <div className="flex items-center mb-4 sm:mb-6">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-[#5BFFB6] to-[#4AE6A0] rounded-lg flex items-center justify-center mr-3 animate-bounce hover:animate-none">
+              <span className="text-base sm:text-lg">🔗</span>
             </div>
+            <div>
+              <h2 className="text-lg sm:text-xl font-bold text-black">Wallet Connection</h2>
+              <p className="text-gray-600 text-xs sm:text-sm">Connect your wallet to interact with Self contracts</p>
+            </div>
+          </div>
 
-          {/* Wallet Status */}
-          <div className="mb-4 sm:mb-6">
-            {!isConnected ? (
-              <div className="text-center bg-gray-50 rounded-lg p-4 sm:p-6 border-2 border-dashed border-gray-200">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-2 sm:mb-3">
-                  <span className="text-lg sm:text-xl">👤</span>
-                </div>
-                <h3 className="text-sm sm:text-base font-semibold text-black mb-2">No Wallet Connected</h3>
-                <p className="text-gray-600 mb-3 sm:mb-4 text-xs sm:text-sm">Connect your wallet to deploy verification configurations</p>
-                <button
-                  onClick={connectWallet}
-                  disabled={isConnecting}
-                  className="inline-flex items-center px-4 sm:px-5 py-2 sm:py-2.5 bg-black text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-600 disabled:cursor-not-allowed transition-all font-semibold text-xs sm:text-sm shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
-                >
-                  {isConnecting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-3 w-3 sm:h-4 sm:w-4 border-2 border-white border-t-transparent mr-2"></div>
-                      Connecting...
-                    </>
-                  ) : (
-                    <>🔗 Connect Wallet</>
-                  )}
-                </button>
-              </div>
-            ) : (
-              <div className="text-center bg-gray-50 rounded-lg p-4 sm:p-6 border border-gray-200">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#5BFFB6] rounded-full flex items-center justify-center mx-auto mb-2 sm:mb-3">
-                  <span className="text-lg sm:text-xl">✅</span>
-                </div>
-                <h3 className="text-sm sm:text-base font-semibold text-black mb-2">Wallet Connected</h3>
-                <div className="font-mono text-xs text-gray-600 bg-white px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg mb-3 sm:mb-4 shadow-sm max-w-full overflow-hidden">
-                  <div className="break-all text-center">
-                    <span className="sm:hidden">{truncateAddress(walletAddress, 6, 4)}</span>
-                    <span className="hidden sm:inline">{truncateAddress(walletAddress, 8, 6)}</span>
-                  </div>
-                </div>
-                <button
-                  onClick={disconnectWallet}
-                  className="px-3 sm:px-4 py-1.5 sm:py-2 text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-semibold text-xs sm:text-sm"
-                >
-                  Disconnect
-                </button>
-              </div>
-            )}
+          {/* Connect Button */}
+          <div className="text-center bg-gray-50 rounded-lg p-4 sm:p-6 border-2 border-dashed border-gray-200">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-[#5BFFB6] to-[#4AE6A0] rounded-full flex items-center justify-center mx-auto mb-2 sm:mb-3">
+              <span className="text-lg sm:text-xl">💼</span>
+            </div>
+            <h3 className="text-sm sm:text-base font-semibold text-black mb-2">Connect Your Wallet</h3>
+            <p className="text-gray-600 mb-3 sm:mb-4 text-xs sm:text-sm">Connect your wallet to interact with Self contracts</p>
+            <div className="flex justify-center">
+              <ConnectButton />
+            </div>
           </div>
 
           {/* Network Options */}
