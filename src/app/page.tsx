@@ -7,7 +7,7 @@ import Image from 'next/image';
 import { QRCodeSVG } from 'qrcode.react';
 import { HUB_CONTRACT_ABI } from '../contracts/hubABI';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { useWalletClient } from 'wagmi';
+import { useWalletClient, useAccount } from 'wagmi';
 
 // Types
 interface VerificationConfigV2 {
@@ -54,6 +54,7 @@ export default function Home() {
 
   // Wallet state
   const { data: walletClient } = useWalletClient();
+  const { isConnected } = useAccount();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
 
