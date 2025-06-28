@@ -42,7 +42,6 @@ const NETWORKS = {
   },
 };
 
-
 export default function Home() {
   const [address, setAddress] = useState('');
   const [scope, setScope] = useState('');
@@ -87,6 +86,21 @@ export default function Home() {
   const [readConfigResult, setReadConfigResult] = useState<VerificationConfigV2 | null>(null);
   const [readConfigError, setReadConfigError] = useState('');
 
+  // Toast notification state
+  const [toast, setToast] = useState<{
+    message: string;
+    type: 'success' | 'error' | 'info';
+    show: boolean;
+  }>({ message: '', type: 'info', show: false });
+
+  // Show toast notification
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToast({ message, type, show: true });
+    setTimeout(() => {
+      setToast(prev => ({ ...prev, show: false }));
+    }, 5000); // Auto-hide after 5 seconds
+  };
+
   // Ethereum address validation (0x followed by 40 hex characters)
   const validateEthereumAddress = (addr: string): boolean => {
     const ethRegex = /^0x[a-fA-F0-9]{40}$/;
@@ -118,7 +132,7 @@ export default function Home() {
   // Check if both fields are valid
   const areBothValid = isAddressValid && isScopeValid;
 
-  // Generate hash when both fields have values (regardless of validity)
+  // Generate hash automatically when both fields have values
   useEffect(() => {
     if (address && scope) {
       try {
@@ -184,11 +198,11 @@ export default function Home() {
         setWalletAddress(address);
         setIsConnected(true);
       } else {
-        alert('Please install MetaMask to connect your wallet');
+        showToast('Please install MetaMask to connect your wallet', 'error');
       }
     } catch (error) {
       console.error('Error connecting wallet:', error);
-      alert('Failed to connect wallet');
+      showToast('Failed to connect wallet', 'error');
     }
   };
 
@@ -208,25 +222,53 @@ export default function Home() {
             method: 'wallet_switchEthereumChain',
             params: [{ chainId: NETWORKS[networkKey].chainId }],
           });
-          alert(`Successfully switched to ${NETWORKS[networkKey].chainName}`);
+          showToast(`Successfully switched to ${NETWORKS[networkKey].chainName}`, 'success');
         } catch (switchError: unknown) {
-          // If the network doesn't exist, add it
-          if ((switchError as { code?: number }).code === 4902) {
-            await window.ethereum.request({
-              method: 'wallet_addEthereumChain',
-              params: [NETWORKS[networkKey]],
-            });
-            alert(`Successfully added ${NETWORKS[networkKey].chainName} to MetaMask`);
+          const error = switchError as { code?: number; message?: string };
+          console.log('Switch error:', error);
+          
+          // Handle user rejection specifically
+          if (error.code === 4001) {
+            showToast('Network switch request was rejected', 'info');
+            return;
+          }
+          
+          // For any other error (network doesn't exist, unrecognized chain, etc.), try to add the network
+          // This includes error code 4902 (network not found) and other similar errors
+          if (error.code === 4902 || 
+              (error.message && error.message.toLowerCase().includes('unrecognized')) ||
+              (error.message && error.message.toLowerCase().includes('does not exist')) ||
+              (error.message && error.message.toLowerCase().includes('not found'))) {
+            
+            try {
+              console.log('Attempting to add network:', NETWORKS[networkKey]);
+              await window.ethereum.request({
+                method: 'wallet_addEthereumChain',
+                params: [NETWORKS[networkKey]],
+              });
+              showToast(`Successfully added and switched to ${NETWORKS[networkKey].chainName}`, 'success');
+            } catch (addError: unknown) {
+              const addErr = addError as Error;
+              console.error('Error adding network:', addErr);
+              if (addErr.message.includes('4001') || addErr.message.includes('rejected')) {
+                showToast('Network addition was rejected by user', 'info');
+              } else {
+                showToast(`Failed to add network: ${addErr.message}. Please add the network manually in MetaMask.`, 'error');
+              }
+            }
           } else {
-            throw switchError;
+            // Unexpected error
+            console.error('Unexpected error switching network:', error);
+            showToast(`Failed to switch network: ${error.message || 'Unknown error'}. You may need to add the network manually.`, 'error');
           }
         }
       } else {
-        alert('Please install MetaMask to add networks');
+        showToast('Please install MetaMask to add networks', 'error');
       }
     } catch (error: unknown) {
-      console.error('Error adding network:', error);
-      alert(`Failed to add network to MetaMask: ${(error as Error).message || 'Unknown error'}`);
+      console.error('Error with network operation:', error);
+      const err = error as Error;
+      showToast(`Network operation failed: ${err.message || 'Unknown error'}`, 'error');
     }
   };
 
@@ -407,333 +449,463 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-white p-8">
-      <div className="max-w-4xl mx-auto space-y-12">
-
-        {/* Header */}
-        <div className="text-center">
-          <div className="flex items-center justify-center mb-6">
-            <Image src="/self_logo.svg" alt="Self Logo" width={48} height={48} className="h-12 w-12 mr-3" />
-            <h1 className="text-4xl font-bold text-black">
-              Self Developer Tools
-            </h1>
+    <div className="min-h-screen bg-white">
+      {/* Navigation Header */}
+      <header className="bg-white border-b border-gray-100 sticky top-0 z-50 backdrop-blur-sm bg-white/95">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
+            <div className="flex items-center">
+              <Image src="/self_logo.svg" alt="Self Logo" width={40} height={40} className="h-10 w-10 mr-4" />
+              <div>
+                <h1 className="text-2xl font-bold text-black">Self Developer Tools</h1>
+                <p className="text-sm text-gray-600 mt-1">Privacy-preserving identity verification</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-8">
+              <a
+                href="https://docs.self.xyz"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-600 hover:text-black transition-colors font-medium text-sm"
+              >
+                Documentation
+              </a>
+              <a
+                href="https://github.com/selfxyz/self"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center px-6 py-2.5 bg-black text-white rounded-xl hover:bg-gray-800 transition-colors text-sm font-semibold"
+              >
+                <Image src="/github.png" alt="GitHub" width={16} height={16} className="h-4 w-4 mr-2 rounded-full" />
+                GitHub
+              </a>
+            </div>
           </div>
+        </div>
+      </header>
 
-          {/* Action buttons */}
-          <div className="flex justify-center gap-4 flex-wrap">
-            <a
-              href="https://github.com/selfxyz/self"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors"
-            >
-              <Image src="/github.png" alt="GitHub" width={20} height={20} className="h-5 w-5 mr-2 rounded-full" />
-              Star on GitHub
-            </a>
-            <a
-              href="https://docs.self.xyz"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              📚 Documentation
-            </a>
-            <a
-              href="https://t.me/selfbuilder"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-            >
-              <Image src="/telegram.webp" alt="Telegram" width={20} height={20} className="h-5 w-5 mr-2" />
-              Builder Channel
-            </a>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        {/* Hero Section */}
+        <div className="text-center mb-12 py-4">
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-4xl font-bold text-black mb-4 leading-tight">
+              Everything you need to build with <span className="text-black">Self Protocol</span>
+            </h2>
+            <p className="text-lg text-gray-600 mb-6 max-w-3xl mx-auto leading-relaxed">
+              Generate scopes, configure verification requirements, and test your integration with our comprehensive developer tools
+            </p>
+            <div className="inline-flex items-center px-6 py-3 bg-black text-white rounded-xl hover:bg-gray-800 transition-all font-semibold shadow-lg">
+              <span className="w-3 h-3 bg-[#5BFFB6] rounded-full mr-3 animate-pulse"></span>
+              Ready to build
+            </div>
           </div>
         </div>
 
-        {/* Mock Passport & App Install Sections */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Mock Passport Section */}
-          <div>
-            <div className="bg-blue-50 rounded-lg p-6 border border-blue-200 ">
-              <h2 className="text-xl font-semibold text-black mb-4">🆔 Don&apos;t have a biometric passport?</h2>
-              <p className="text-gray-700">
-                Learn how to generate a mock one in the Self app.{' '}
-                <a
-                  href="https://docs.self.xyz/use-self/using-mock-passports"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 underline hover:text-blue-800"
-                >
-                  Read the documentation
-                </a>
-              </p>
-            </div>
-          </div>
-
-          {/* App Install Section */}
-          <div className="bg-green-50 rounded-lg p-6 border border-green-200">
-            <h2 className="text-xl font-semibold text-black mb-8">📱 Install the Self App</h2>
+        {/* Quick Start Cards */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12 max-w-4xl mx-auto">
+          {/* App Install Card */}
+          <div className="bg-white rounded-xl p-6 border border-gray-100 hover:border-[#5BFFB6] transition-all hover:shadow-lg group">
             <div className="text-center">
-              <div className="bg-white p-4 rounded-lg border border-gray-200 mb-3 inline-block">
+              <div className="w-14 h-14 bg-gradient-to-br from-[#5BFFB6] to-[#4AE6A0] rounded-xl flex items-center justify-center mb-4 mx-auto group-hover:scale-105 transition-transform">
+                <span className="text-xl">📱</span>
+              </div>
+              <h3 className="text-lg font-bold text-black mb-3">Install Self App</h3>
+              <p className="text-gray-600 mb-4 leading-relaxed text-sm">Get started by installing the Self mobile app to create your digital identity</p>
+              <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 mb-3 inline-block">
                 <QRCodeSVG
                   value="https://redirect.self.xyz"
-                  size={200}
+                  size={140}
                   level="M"
                   includeMargin={false}
                 />
               </div>
+              <p className="text-xs text-gray-500 font-medium">Scan to download the app</p>
+            </div>
+          </div>
+
+          {/* Mock Passport Card */}
+          <div className="bg-white rounded-xl p-6 border border-gray-100 hover:border-[#5BFFB6] transition-all hover:shadow-lg group">
+            <div className="text-center">
+              <div className="w-14 h-14 bg-black rounded-xl flex items-center justify-center mb-4 mx-auto group-hover:scale-105 transition-transform">
+                <span className="text-xl text-white">🆔</span>
+              </div>
+              <h3 className="text-lg font-bold text-black mb-3">Need a Mock Passport?</h3>
+              <p className="text-gray-600 mb-4 leading-relaxed text-sm">Don&apos;t have a biometric passport? Generate a mock one for testing</p>
+              <a
+                href="https://docs.self.xyz/use-self/using-mock-passports"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center px-5 py-2.5 bg-gradient-to-r from-[#5BFFB6] to-[#4AE6A0] text-black rounded-lg hover:shadow-lg transition-all font-semibold text-sm"
+              >
+                Learn How →
+              </a>
             </div>
           </div>
         </div>
 
         {/* Wallet Connection Section */}
-        <div className="bg-gray-50 rounded-xl border border-gray-200 p-8 shadow-sm">
-          <h2 className="text-2xl font-semibold text-black mb-6">🔗 Wallet Connection</h2>
+        <div className="bg-white rounded-xl border border-gray-100 p-6 mb-12 shadow-sm">
+          <div className="flex items-center mb-6">
+            <div className="w-10 h-10 bg-gradient-to-br from-[#5BFFB6] to-[#4AE6A0] rounded-lg flex items-center justify-center mr-3">
+              <span className="text-lg">🔗</span>
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-black">Wallet Connection</h2>
+              <p className="text-gray-600 text-sm">Connect your wallet to interact with Self contracts</p>
+            </div>
+          </div>
 
           {/* Wallet Status */}
-          <div className="mb-8">
+          <div className="mb-6">
             {!isConnected ? (
-              <div className="text-center">
+              <div className="text-center bg-gray-50 rounded-lg p-6 border-2 border-dashed border-gray-200">
+                <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <span className="text-xl">👤</span>
+                </div>
+                <h3 className="text-base font-semibold text-black mb-2">No Wallet Connected</h3>
+                <p className="text-gray-600 mb-4 text-sm">Connect your wallet to deploy verification configurations</p>
                 <button
                   onClick={connectWallet}
-                  className="flex items-center justify-center px-6 py-3 text-white bg-black rounded-lg hover:bg-gray-800 transition-colors hover:cursor-pointer font-medium"
+                  className="inline-flex items-center px-5 py-2.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-all font-semibold text-sm shadow-lg"
                 >
-                  Connect Wallet
+                  🔗 Connect Wallet
                 </button>
               </div>
             ) : (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-green-700 font-medium mb-1">Connected Wallet</p>
-                    <p className="font-mono text-sm text-green-800">{walletAddress}</p>
-                  </div>
-                  <button
-                    onClick={disconnectWallet}
-                    className="flex items-center px-4 py-2 text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors hover:cursor-pointer"
-                  >
-                    Disconnect
-                  </button>
+              <div className="text-center bg-gray-50 rounded-lg p-6 border border-gray-200">
+                <div className="w-12 h-12 bg-[#5BFFB6] rounded-full flex items-center justify-center mx-auto mb-3">
+                  <span className="text-xl">✅</span>
                 </div>
+                <h3 className="text-base font-semibold text-black mb-2">Wallet Connected</h3>
+                <p className="font-mono text-xs text-gray-600 bg-white px-3 py-1.5 rounded-lg inline-block mb-4 shadow-sm break-all max-w-full">
+                  {walletAddress}
+                </p>
+                <button
+                  onClick={disconnectWallet}
+                  className="px-4 py-2 text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-semibold text-sm"
+                >
+                  Disconnect
+                </button>
               </div>
             )}
           </div>
 
-          {/* Mainnet & Testnet Side by Side */}
-          <div className="flex flex-row gap-12">
+          {/* Network Options */}
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-700">
+              💡 These buttons will switch to the network if it&apos;s already in your wallet, or add it first if it&apos;s not.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Mainnet */}
-            <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-3">Mainnet</h3>
+            <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 hover:border-[#5BFFB6] transition-all">
+              <div className="flex items-center mb-4">
+                <Image src="/celo.webp" alt="Celo" width={32} height={32} className="h-8 w-8 mr-3 rounded-full" />
+                <div>
+                  <h3 className="text-lg font-semibold text-black">Celo Mainnet</h3>
+                  <p className="text-sm text-gray-600">Production network</p>
+                </div>
+              </div>
               <button
                 onClick={() => addNetworkToMetaMask('celo')}
-                className="flex items-center px-4 py-3 text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors hover:cursor-pointer"
+                className="w-full flex items-center justify-center px-4 py-3 bg-black text-white rounded-lg hover:bg-gray-800 transition-all font-semibold"
               >
-                <Image src="/celo.webp" alt="Celo" width={24} height={24} className="h-6 w-6 mr-3 rounded-full" />
-                <span className="font-medium">Switch to Celo</span>
+                🔄 Add & Switch to Mainnet
               </button>
             </div>
 
-            <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-3">Testnet</h3>
-              <div className="flex flex-row gap-5">
+            {/* Testnet */}
+            <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 hover:border-[#5BFFB6] transition-all">
+              <div className="flex items-center mb-4">
+                <Image src="/celo_testnet.webp" alt="Celo Testnet" width={32} height={32} className="h-8 w-8 mr-3 rounded-full" />
+                <div>
+                  <h3 className="text-lg font-semibold text-black">Celo Testnet</h3>
+                  <p className="text-sm text-gray-600">Development network</p>
+                </div>
+              </div>
+              <div className="space-y-3">
                 <button
                   onClick={() => addNetworkToMetaMask('alfajores')}
-                  className="flex items-center px-4 py-3 text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors hover:cursor-pointer"
+                  className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-[#5BFFB6] to-[#4AE6A0] text-black rounded-lg hover:shadow-lg transition-all font-semibold"
                 >
-                  <Image src="/celo_testnet.webp" alt="Celo Testnet" width={24} height={24} className="h-6 w-6 mr-3 rounded-full" />
-                  <span className="font-medium">Switch to Celo Testnet</span>
+                  🔄 Add & Switch to Testnet
                 </button>
                 <a
                   href="https://faucet.celo.org"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center w-fit px-4 py-3 text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors hover:cursor-pointer"
+                  className="w-full flex items-center justify-center px-4 py-3 bg-white text-black border border-gray-300 rounded-lg hover:bg-gray-50 transition-all font-semibold"
                 >
                   <span className="mr-2">🚰</span>
-                  <span className="font-medium">Get Testnet Funds</span>
+                  Get Test Funds
                 </a>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Scope Generator Section (Existing) */}
-        <div className="bg-gray-50 rounded-lg p-6 border">
-          <h2 className="text-2xl font-semibold text-black mb-4">🔧 Scope Generator</h2>
-          <p className="text-gray-600 ">
-            Hash the Scope seed 🌱 with the address or DNS to generate the Scope.
-          </p>
-          <p className="text-gray-600 mb-6">
-            The scope is the final value you want to set in your Self Verification contract.
-          </p>
+        {/* Scope Generator Section */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-lg mb-12">
+          <div className="flex items-center mb-6">
+            <div className="w-10 h-10 bg-gradient-to-br from-[#5BFFB6] to-[#4AE6A0] rounded-lg flex items-center justify-center mr-3">
+              <span className="text-lg">🔧</span>
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-black">Scope Generator</h2>
+              <p className="text-gray-600 text-sm">Hash the scope seed with your address or DNS to generate the scope value</p>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200 mb-8">
+            <div className="flex items-start">
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-4 mt-1">
+                <span className="text-lg">💡</span>
+              </div>
+              <div>
+                <h4 className="font-bold text-blue-900 mb-2">What is a Scope?</h4>
+                <p className="text-blue-800 text-sm leading-relaxed">
+                  The scope is the final value you set in your Self Verification contract. It&apos;s generated by hashing your scope seed 🌱 
+                  with your address or DNS, creating a unique identifier for your verification requirements.
+                </p>
+              </div>
+            </div>
+          </div>
 
 
-          <div className="max-w-md mx-auto space-y-6">
-            <div className="space-y-4">
+          <div className="max-w-2xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Address Input */}
               <div>
-                <label className="block text-sm font-medium text-black mb-2">
+                <label className="block text-sm font-semibold text-gray-900 mb-3">
                   Address or URL
                 </label>
-                <input
-                  id="address"
-                  type="text"
-                  value={address}
-                  onChange={handleAddressChange}
-                  placeholder="0x1234... or https://example.com"
-                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black transition-colors ${addressError
-                    ? 'border-red-500 bg-red-50'
-                    : isAddressValid
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-300 bg-white'
-                    }`}
-                />
+                <div className="relative">
+                  <input
+                    id="address"
+                    type="text"
+                    value={address}
+                    onChange={handleAddressChange}
+                    placeholder="0x1234... or https://example.com"
+                    className={`w-full px-4 py-3 border-2 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 transition-all font-mono text-sm ${addressError
+                      ? 'border-red-300 bg-red-50 focus:border-red-500'
+                      : isAddressValid
+                        ? 'border-green-300 bg-green-50 focus:border-green-500'
+                        : 'border-gray-200 bg-white focus:border-blue-500'
+                      }`}
+                    style={{ wordBreak: 'break-all' }}
+                  />
+                  {isAddressValid && (
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                      <span className="text-green-500 text-lg">✓</span>
+                    </div>
+                  )}
+                </div>
                 {addressError && (
-                  <p className="mt-1 text-sm text-red-600">{addressError}</p>
+                  <p className="mt-2 text-sm text-red-600 flex items-center">
+                    <span className="mr-1">⚠️</span>
+                    {addressError}
+                  </p>
                 )}
               </div>
 
               {/* Scope Input */}
               <div>
-                <label className="block text-sm font-medium text-black mb-2">
+                <label className="block text-sm font-semibold text-gray-900 mb-3">
                   Scope seed 🌱
                 </label>
-                <input
-                  id="scope"
-                  type="text"
-                  value={scope}
-                  onChange={handleScopeChange}
-                  placeholder="enter scope (max 20 chars)"
-                  maxLength={20}
-                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black transition-colors ${scopeError
-                    ? 'border-red-500 bg-red-50'
-                    : isScopeValid
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-300 bg-white'
-                    }`}
-                />
-                <div className="flex justify-between items-center mt-1">
-                  {scopeError && (
-                    <p className="text-sm text-red-600">{scopeError}</p>
+                <div className="relative">
+                  <input
+                    id="scope"
+                    type="text"
+                    value={scope}
+                    onChange={handleScopeChange}
+                    placeholder="enter scope (max 20 chars)"
+                    maxLength={20}
+                    className={`w-full px-4 py-3 border-2 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 transition-all ${scopeError
+                      ? 'border-red-300 bg-red-50 focus:border-red-500'
+                      : isScopeValid
+                        ? 'border-green-300 bg-green-50 focus:border-green-500'
+                        : 'border-gray-200 bg-white focus:border-blue-500'
+                      }`}
+                  />
+                  {isScopeValid && (
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                      <span className="text-green-500 text-lg">✓</span>
+                    </div>
                   )}
-                  <p className="text-sm text-gray-600 ml-auto">
+                </div>
+                <div className="flex justify-between items-center mt-2">
+                  {scopeError && (
+                    <p className="text-sm text-red-600 flex items-center">
+                      <span className="mr-1">⚠️</span>
+                      {scopeError}
+                    </p>
+                  )}
+                  <p className="text-sm text-gray-500 ml-auto">
                     {scope.length}/20 chars
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Status Display */}
-            <div className="mt-8 p-4 bg-white rounded-md border">
-              <h3 className="text-lg font-medium text-black mb-2">Current Values:</h3>
-              <div className="space-y-2 text-sm">
-                <p>
-                  <span className="font-medium text-black">Address/URL:</span>{' '}
-                  <span className={isAddressValid ? 'text-green-600' : 'text-gray-600'}>
-                    {address || 'Not set'}
-                  </span>
-                  {isAddressValid && (
-                    <span className="ml-2 text-green-600">✓ Valid</span>
-                  )}
-                </p>
-                <p>
-                  <span className="font-medium text-black">Scope seed:</span>{' '}
-                  <span className={isScopeValid ? 'text-green-600' : 'text-gray-600'}>
-                    {scope || 'Not set'}
-                  </span>
-                  {isScopeValid && (
-                    <span className="ml-2 text-green-600">✓ Valid</span>
-                  )}
-                </p>
-                {hashedEndpoint && (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="font-medium text-black">Scope Value:</p>
-                      {areBothValid && (
-                        <button
-                          onClick={copyToClipboard}
-                          className={`px-3 py-1 text-xs rounded transition-colors ${copySuccess
-                            ? 'bg-green-100 text-green-700 border border-green-300'
-                            : 'bg-blue-100 text-blue-700 border border-blue-300 hover:bg-blue-200'
-                            }`}
-                        >
-                          {copySuccess ? '✓ Copied!' : 'Copy'}
-                        </button>
-                      )}
-                    </div>
-
-                    {!areBothValid && (
-                      <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded">
-                        <p className="text-sm text-yellow-800">
-                          ⚠️ Warning: One or both fields are not valid. The hash below may not be accurate.
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="bg-gray-50 p-3 rounded border">
-                      <code className="text-sm text-black break-all font-mono">
-                        {hashedEndpoint}
-                      </code>
+            {/* Results Display */}
+            {hashedEndpoint && (
+              <div className="mt-8">
+                {!areBothValid && (
+                  <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                    <div className="flex items-center">
+                      <span className="text-amber-500 text-xl mr-3">⚠️</span>
+                      <p className="text-amber-800 font-medium">
+                        Warning: One or both fields are not valid. The hash below may not be accurate.
+                      </p>
                     </div>
                   </div>
                 )}
+
+                <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-gray-900 flex items-center">
+                      <span className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
+                        🎯
+                      </span>
+                      Generated Scope
+                    </h3>
+                    <button
+                      onClick={copyToClipboard}
+                      className={`flex items-center px-4 py-2 rounded-lg font-medium transition-all ${copySuccess
+                        ? 'bg-green-500 text-white'
+                        : 'bg-white text-blue-700 border border-blue-300 hover:bg-blue-50 shadow-sm'
+                        }`}
+                    >
+                      {copySuccess ? (
+                        <>
+                          <span className="mr-2">✓</span>
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <span className="mr-2">📋</span>
+                          Copy
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+                    <code className="text-sm text-gray-900 break-all font-mono leading-relaxed">
+                      {hashedEndpoint}
+                    </code>
+                  </div>
+
+                  <div className="mt-4 text-sm text-blue-700">
+                    <p className="flex items-center">
+                      <span className="mr-2">💡</span>
+                      Use this value as the scope parameter in your Self Verification contract
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Input Summary */}
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <h4 className="font-semibold text-gray-900 mb-2">Address/URL</h4>
+                <p className={`text-sm ${isAddressValid ? 'text-green-600' : 'text-gray-500'}`}>
+                  {address || 'Not set'}
+                  {isAddressValid && <span className="ml-2">✓</span>}
+                </p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <h4 className="font-semibold text-gray-900 mb-2">Scope Seed</h4>
+                <p className={`text-sm ${isScopeValid ? 'text-green-600' : 'text-gray-500'}`}>
+                  {scope || 'Not set'}
+                  {isScopeValid && <span className="ml-2">✓</span>}
+                </p>
               </div>
             </div>
           </div>
         </div>
 
         {/* Hub Contract Operations Section */}
-        <div className="bg-gray-50 rounded-lg p-6 border">
-          <h2 className="text-2xl font-semibold text-black mb-4">🏛️ Hub Contract Operations</h2>
-          <p className="text-gray-600 mb-6">
-            Configure verification parameters, deploy to the hub contract, and read existing configurations
-          </p>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-lg mb-12">
+          <div className="p-6">
+            <div className="flex items-center mb-6">
+              <div className="w-10 h-10 bg-gradient-to-br from-[#5BFFB6] to-[#4AE6A0] rounded-lg flex items-center justify-center mr-3">
+                <span className="text-lg">🏛️</span>
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-black">Hub Contract Operations</h2>
+                <p className="text-gray-600 text-sm">Configure verification parameters and manage contract interactions</p>
+              </div>
+            </div>
 
-          {/* Unified Network Selection */}
-          <div className="bg-white border border-gray-200 rounded-lg p-4 mb-8">
-            <h4 className="text-gray-800 font-medium mb-3">🌐 Select Network</h4>
-            <div className="flex gap-6">
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="radio"
-                  name="unified-network"
-                  value="celo"
-                  checked={selectedNetwork === 'celo'}
-                  onChange={(e) => setSelectedNetwork(e.target.value as 'celo' | 'alfajores')}
-                  className="mr-3"
-                />
-                <Image src="/celo.webp" alt="Celo" width={24} height={24} className="h-6 w-6 mr-3 rounded-full" />
-                <div>
-                  <div className="text-sm font-medium text-black">Celo Mainnet</div>
-                  <div className="text-xs text-gray-500">{DEFAULT_HUB_ADDRESSES.celo}</div>
-                </div>
-              </label>
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="radio"
-                  name="unified-network"
-                  value="alfajores"
-                  checked={selectedNetwork === 'alfajores'}
-                  onChange={(e) => setSelectedNetwork(e.target.value as 'celo' | 'alfajores')}
-                  className="mr-3"
-                />
-                <Image src="/celo_testnet.webp" alt="Celo Testnet" width={24} height={24} className="h-6 w-6 mr-3 rounded-full" />
-                <div>
-                  <div className="text-sm font-medium text-black">Celo Testnet (Alfajores)</div>
-                  <div className="text-xs text-gray-500">{DEFAULT_HUB_ADDRESSES.alfajores}</div>
-                </div>
-              </label>
+            {/* Unified Network Selection */}
+            <div className="bg-gradient-to-r from-gray-50 to-blue-50 border border-gray-200 rounded-xl p-6 mb-8">
+              <h4 className="text-gray-900 font-semibold mb-4 flex items-center">
+                <span className="w-6 h-6 bg-blue-100 rounded-lg flex items-center justify-center mr-3 text-sm">🌐</span>
+                Network Selection
+              </h4>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <label className={`flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                  selectedNetwork === 'celo' 
+                    ? 'border-blue-500 bg-blue-50' 
+                    : 'border-gray-200 bg-white hover:border-gray-300'
+                }`}>
+                  <input
+                    type="radio"
+                    name="unified-network"
+                    value="celo"
+                    checked={selectedNetwork === 'celo'}
+                    onChange={(e) => setSelectedNetwork(e.target.value as 'celo' | 'alfajores')}
+                    className="mr-4"
+                  />
+                  <Image src="/celo.webp" alt="Celo" width={32} height={32} className="h-8 w-8 mr-4 rounded-full" />
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-gray-900">Celo Mainnet</div>
+                    <div className="text-xs text-gray-600 font-mono">{DEFAULT_HUB_ADDRESSES.celo}</div>
+                  </div>
+                  {selectedNetwork === 'celo' && (
+                    <span className="text-blue-500 text-lg">✓</span>
+                  )}
+                </label>
+                
+                <label className={`flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                  selectedNetwork === 'alfajores' 
+                    ? 'border-amber-500 bg-amber-50' 
+                    : 'border-gray-200 bg-white hover:border-gray-300'
+                }`}>
+                  <input
+                    type="radio"
+                    name="unified-network"
+                    value="alfajores"
+                    checked={selectedNetwork === 'alfajores'}
+                    onChange={(e) => setSelectedNetwork(e.target.value as 'celo' | 'alfajores')}
+                    className="mr-4"
+                  />
+                  <Image src="/celo_testnet.webp" alt="Celo Testnet" width={32} height={32} className="h-8 w-8 mr-4 rounded-full" />
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-gray-900">Celo Testnet</div>
+                    <div className="text-xs text-gray-600 font-mono">{DEFAULT_HUB_ADDRESSES.alfajores}</div>
+                  </div>
+                  {selectedNetwork === 'alfajores' && (
+                    <span className="text-amber-500 text-lg">✓</span>
+                  )}
+                </label>
+              </div>
+              
+              <div className="bg-white border border-gray-200 rounded-lg p-3">
+                <p className="text-sm text-gray-700 flex items-center">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <strong>Active Network:</strong> {selectedNetwork === 'celo' ? 'Celo Mainnet' : 'Celo Testnet (Alfajores)'}
+                </p>
+                <p className="text-xs text-gray-500 mt-1 ml-6">
+                  This selection applies to both Set and Read operations
+                </p>
+              </div>
             </div>
-            <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded">
-              <p className="text-xs text-green-700">
-                ✅ <strong>Active:</strong> {selectedNetwork === 'celo' ? 'Celo Mainnet' : 'Celo Testnet (Alfajores)'} - 
-                Hub: <code className="bg-green-100 px-1 rounded">{DEFAULT_HUB_ADDRESSES[selectedNetwork]}</code>
-              </p>
-              <p className="text-xs text-green-600 mt-1">
-                ℹ️ This network selection applies to both Set and Read operations
-              </p>
-            </div>
-          </div>
 
           {/* Set Verification Config Section */}
           <div className="mb-12">
@@ -760,9 +932,9 @@ export default function Home() {
             </div>
 
             {/* Example Config Info */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-              <h4 className="text-blue-800 font-medium mb-2">💡 Example Configuration</h4>
-              <p className="text-blue-700 text-sm mb-3">
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 mb-6">
+              <h4 className="text-blue-800 font-bold mb-2">💡 Example Configuration</h4>
+              <p className="text-blue-700 mb-3 text-sm leading-relaxed">
                 Try the &ldquo;Load Example Config&rdquo; button to see a sample setup with <strong>no verification requirements</strong>:
               </p>
               <ul className="text-blue-600 text-sm space-y-1 ml-4">
@@ -770,10 +942,10 @@ export default function Home() {
                 <li>• Forbidden countries: <strong>Disabled</strong> (allows all countries)</li>
                 <li>• OFAC compliance: <strong>Disabled</strong> (no OFAC checks)</li>
               </ul>
-              <p className="text-blue-700 text-sm mt-3">
+              <p className="text-blue-700 mt-3 text-sm leading-relaxed">
                 This creates an <em>open configuration</em> where all users can verify without restrictions.
               </p>
-              <div className="mt-3 p-2 bg-blue-100 rounded">
+              <div className="mt-3 p-2 bg-blue-100 rounded-lg">
                 <p className="text-xs text-blue-600 font-mono">
                   Expected Config ID: 0x7b6436b0c98f62380866d9432c2af0ee08ce16a171bda6951aecd95ee1307d61
                 </p>
@@ -863,7 +1035,7 @@ export default function Home() {
               <button
                 onClick={setVerificationConfig}
                 disabled={!isConnected}
-                className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                className="px-6 py-3 bg-gradient-to-r from-[#5BFFB6] to-[#4AE6A0] text-black rounded-xl hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed disabled:from-gray-400 disabled:to-gray-400 disabled:text-gray-600 transition-all font-semibold"
               >
                 {isConnected ? 'Set Verification Config' : 'Connect Wallet First'}
               </button>
@@ -950,7 +1122,7 @@ export default function Home() {
 
               <button
                 onClick={readVerificationConfig}
-                className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                className="px-6 py-3 bg-black text-white rounded-xl hover:bg-gray-800 transition-all font-semibold hover:shadow-lg"
               >
                 Read Config
               </button>
@@ -1017,9 +1189,102 @@ export default function Home() {
             </div>
           </div>
         </div>
-
-
       </div>
+        
+      </main>
+
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className={`fixed top-6 left-1/2 transform -translate-x-1/2 z-50 transition-all duration-300 ${
+          toast.show ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'
+        }`}>
+          <div className={`flex items-center p-5 rounded-xl shadow-2xl min-w-96 max-w-2xl ${
+            toast.type === 'success' ? 'bg-green-50 border-2 border-green-300' :
+            toast.type === 'error' ? 'bg-red-50 border-2 border-red-300' :
+            'bg-blue-50 border-2 border-blue-300'
+          }`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-4 ${
+              toast.type === 'success' ? 'bg-green-100' :
+              toast.type === 'error' ? 'bg-red-100' :
+              'bg-blue-100'
+            }`}>
+              <span className="text-lg">
+                {toast.type === 'success' ? '✅' : toast.type === 'error' ? '❌' : 'ℹ️'}
+              </span>
+            </div>
+            <div className="flex-1">
+              <p className={`text-base font-semibold ${
+                toast.type === 'success' ? 'text-green-800' :
+                toast.type === 'error' ? 'text-red-800' :
+                'text-blue-800'
+              }`}>
+                {toast.message}
+              </p>
+            </div>
+            <button
+              onClick={() => setToast(prev => ({ ...prev, show: false }))}
+              className={`ml-4 text-xl font-bold hover:scale-110 transition-transform ${
+                toast.type === 'success' ? 'text-green-600 hover:text-green-800' :
+                toast.type === 'error' ? 'text-red-600 hover:text-red-800' :
+                'text-blue-600 hover:text-blue-800'
+              }`}
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Footer */}
+      <footer className="bg-black text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+              <div className="flex items-center mb-4">
+                <Image src="/self_logo.svg" alt="Self Logo" width={32} height={32} className="h-8 w-8 mr-3" />
+                <span className="text-xl font-bold">Self Protocol</span>
+              </div>
+              <p className="text-gray-400 leading-relaxed mb-6">
+                Verify real users while preserving privacy. Build the future of identity verification.
+              </p>
+              <div className="flex space-x-4">
+                <a href="https://github.com/selfxyz/self" target="_blank" rel="noopener noreferrer"
+                   className="text-gray-400 hover:text-[#5BFFB6] transition-colors">
+                  <Image src="/github.png" alt="GitHub" width={20} height={20} className="h-5 w-5 rounded-full" />
+                </a>
+                <a href="https://t.me/selfbuilder" target="_blank" rel="noopener noreferrer"
+                   className="text-gray-400 hover:text-[#5BFFB6] transition-colors">
+                  <Image src="/telegram.webp" alt="Telegram" width={20} height={20} className="h-5 w-5 rounded-full" />
+                </a>
+              </div>
+            </div>
+            
+            <div>
+              <h4 className="font-bold mb-4">Developer Resources</h4>
+              <div className="space-y-3">
+                <a href="https://docs.self.xyz" target="_blank" rel="noopener noreferrer" 
+                   className="block text-gray-400 hover:text-[#5BFFB6] transition-colors">
+                  Documentation
+                </a>
+                <a href="https://docs.self.xyz/use-self/using-mock-passports" target="_blank" rel="noopener noreferrer"
+                   className="block text-gray-400 hover:text-[#5BFFB6] transition-colors">
+                  Mock Passports
+                </a>
+                <a href="https://github.com/selfxyz/self" target="_blank" rel="noopener noreferrer"
+                   className="block text-gray-400 hover:text-[#5BFFB6] transition-colors">
+                   GitHub Repository
+                </a>
+              </div>
+            </div>
+          </div>
+          
+          <div className="border-t border-gray-800 mt-8 pt-6 text-center">
+            <p className="text-gray-400 text-sm">
+              © 2025 Self Labs
+            </p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
