@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { QRCodeSVG } from 'qrcode.react';
 import { HUB_CONTRACT_ABI } from '../contracts/hubABI';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useWalletClient } from 'wagmi';
 
 // Types
 interface VerificationConfigV2 {
@@ -52,6 +53,7 @@ export default function Home() {
   const [copySuccess, setCopySuccess] = useState(false);
 
   // Wallet state
+  const { data: walletClient } = useWalletClient();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
 
@@ -322,7 +324,7 @@ export default function Home() {
 
   // Verification config functions
   const setVerificationConfig = async () => {
-    if (!signer) {
+    if (!walletClient) {
       setConfigError('Please connect wallet first');
       return;
     }
@@ -332,6 +334,10 @@ export default function Home() {
       setConfigError('');
       setConfigSuccess('');
       setGeneratedConfigId('');
+
+      // Create ethers provider and signer from wagmi walletClient
+      const provider = new ethers.BrowserProvider(walletClient.transport);
+      const signer = await provider.getSigner();
 
       const hubContractAddress = DEFAULT_HUB_ADDRESSES[selectedNetwork];
       const contract = new ethers.Contract(hubContractAddress, HUB_CONTRACT_ABI, signer);
