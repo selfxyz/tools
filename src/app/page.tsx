@@ -563,6 +563,15 @@ export default function Home() {
                 <span className="hidden lg:inline">Documentation</span>
               </a>
               <a
+                href="https://t.me/selfbuilder"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center px-3 sm:px-4 lg:px-6 py-1.5 sm:py-2 lg:py-2.5 bg-gradient-to-r from-[#5BFFB6] to-[#4AE6A0] text-black rounded-lg sm:rounded-xl hover:shadow-lg transition-all text-xs sm:text-sm font-semibold transform hover:scale-105 active:scale-95 hover:shadow-xl"
+              >
+                <Image src="/telegram.webp" alt="Telegram" width={14} height={14} className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2 rounded-full" />
+                <span className="sm:inline">Telegram</span>
+              </a>
+              <a
                 href="https://github.com/selfxyz/self"
                 target="_blank"
                 rel="noopener noreferrer"
