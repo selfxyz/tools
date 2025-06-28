@@ -651,6 +651,33 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Help Banner */}
+        <div className="max-w-4xl mx-auto mb-8 sm:mb-12 px-2 sm:px-0">
+          <div className="bg-gradient-to-r from-[#5BFFB6]/10 via-blue-50 to-[#5BFFB6]/10 border border-[#5BFFB6]/30 rounded-xl p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row items-center text-center sm:text-left">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-[#5BFFB6] to-[#4AE6A0] rounded-xl flex items-center justify-center mb-4 sm:mb-0 sm:mr-6 animate-pulse">
+                <span className="text-xl sm:text-2xl">🚀</span>
+              </div>
+              <div className="flex-1 mb-4 sm:mb-0">
+                <h3 className="text-lg sm:text-xl font-bold text-black mb-2">Need Help Building?</h3>
+                <p className="text-gray-700 text-sm sm:text-base leading-relaxed">
+                  Join our active Telegram community for instant support, code examples, and direct access to the Self Protocol team!
+                </p>
+              </div>
+              <a
+                href="https://t.me/selfbuilder"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-[#5BFFB6] to-[#4AE6A0] text-black rounded-xl hover:shadow-lg transition-all font-semibold text-sm sm:text-base transform hover:scale-105 active:scale-95 hover:shadow-xl group"
+              >
+                <Image src="/telegram.webp" alt="Telegram" width={20} height={20} className="h-4 w-4 sm:h-5 sm:w-5 mr-2 sm:mr-3 rounded-full group-hover:animate-bounce" />
+                <span>Join Community</span>
+                <span className="ml-2 transform group-hover:translate-x-1 transition-transform">→</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
         {/* Quick Start Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-8 sm:mb-12 max-w-4xl mx-auto px-2 sm:px-0">
           {/* App Install Card */}
@@ -735,10 +762,12 @@ export default function Home() {
                   <span className="text-lg sm:text-xl">✅</span>
                 </div>
                 <h3 className="text-sm sm:text-base font-semibold text-black mb-2">Wallet Connected</h3>
-                <p className="font-mono text-xs text-gray-600 bg-white px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg inline-block mb-3 sm:mb-4 shadow-sm max-w-full">
-                  <span className="sm:hidden">{truncateAddress(walletAddress, 6, 4)}</span>
-                  <span className="hidden sm:inline">{truncateAddress(walletAddress, 8, 6)}</span>
-                </p>
+                <div className="font-mono text-xs text-gray-600 bg-white px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg mb-3 sm:mb-4 shadow-sm max-w-full overflow-hidden">
+                  <div className="break-all text-center">
+                    <span className="sm:hidden">{truncateAddress(walletAddress, 6, 4)}</span>
+                    <span className="hidden sm:inline">{truncateAddress(walletAddress, 8, 6)}</span>
+                  </div>
+                </div>
                 <button
                   onClick={disconnectWallet}
                   className="px-3 sm:px-4 py-1.5 sm:py-2 text-black bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-semibold text-xs sm:text-sm"
@@ -861,13 +890,13 @@ export default function Home() {
                     value={address}
                     onChange={handleAddressChange}
                     placeholder="0x1234... or https://example.com"
-                    className={`w-full px-4 py-3 border-2 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 transition-all font-mono text-sm transform focus:scale-[1.02] hover:shadow-md ${addressError
+                    className={`w-full px-4 py-3 border-2 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 transition-all font-mono text-sm transform focus:scale-[1.02] hover:shadow-md overflow-hidden ${addressError
                       ? 'border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-200'
                       : isAddressValid
                         ? 'border-green-300 bg-green-50 focus:border-green-500 focus:ring-green-200'
                         : 'border-gray-200 bg-white focus:border-blue-500 focus:ring-blue-200'
                       }`}
-                    style={{ wordBreak: 'break-all' }}
+                    style={{ wordBreak: 'break-all', overflowWrap: 'break-word' }}
                   />
                   {isAddressValid && (
                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -966,10 +995,10 @@ export default function Home() {
                     </button>
                   </div>
 
-                  <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
-                    <code className="text-sm text-gray-900 break-all font-mono leading-relaxed">
+                  <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="text-sm text-gray-900 font-mono leading-relaxed break-all overflow-wrap-anywhere">
                       {hashedEndpoint}
-                    </code>
+                    </div>
                   </div>
 
                   <div className="mt-4 text-sm text-blue-700">
@@ -1039,9 +1068,11 @@ export default function Home() {
                   <Image src="/celo.webp" alt="Celo" width={32} height={32} className="h-8 w-8 mr-4 rounded-full" />
                   <div className="flex-1">
                     <div className="text-sm font-semibold text-gray-900">Celo Mainnet</div>
-                    <div className="text-xs text-gray-600 font-mono">
-                      <span className="sm:hidden">{truncateAddress(DEFAULT_HUB_ADDRESSES.celo, 6, 4)}</span>
-                      <span className="hidden sm:inline">{truncateAddress(DEFAULT_HUB_ADDRESSES.celo, 8, 6)}</span>
+                    <div className="text-xs text-gray-600 font-mono overflow-hidden">
+                      <div className="break-all">
+                        <span className="sm:hidden">{truncateAddress(DEFAULT_HUB_ADDRESSES.celo, 6, 4)}</span>
+                        <span className="hidden sm:inline">{truncateAddress(DEFAULT_HUB_ADDRESSES.celo, 8, 6)}</span>
+                      </div>
                     </div>
                   </div>
                   {selectedNetwork === 'celo' && (
@@ -1065,9 +1096,11 @@ export default function Home() {
                   <Image src="/celo_testnet.webp" alt="Celo Testnet" width={32} height={32} className="h-8 w-8 mr-4 rounded-full" />
                   <div className="flex-1">
                     <div className="text-sm font-semibold text-gray-900">Celo Testnet</div>
-                    <div className="text-xs text-gray-600 font-mono">
-                      <span className="sm:hidden">{truncateAddress(DEFAULT_HUB_ADDRESSES.alfajores, 6, 4)}</span>
-                      <span className="hidden sm:inline">{truncateAddress(DEFAULT_HUB_ADDRESSES.alfajores, 8, 6)}</span>
+                    <div className="text-xs text-gray-600 font-mono overflow-hidden">
+                      <div className="break-all">
+                        <span className="sm:hidden">{truncateAddress(DEFAULT_HUB_ADDRESSES.alfajores, 6, 4)}</span>
+                        <span className="hidden sm:inline">{truncateAddress(DEFAULT_HUB_ADDRESSES.alfajores, 8, 6)}</span>
+                      </div>
                     </div>
                   </div>
                   {selectedNetwork === 'alfajores' && (
@@ -1129,10 +1162,12 @@ export default function Home() {
                 <p className="text-xs text-blue-600">
                   <span className="font-semibold">Expected Config ID:</span>
                 </p>
-                <p className="text-xs text-blue-600 font-mono mt-1">
-                  <span className="sm:hidden">{truncateAddress('0x7b6436b0c98f62380866d9432c2af0ee08ce16a171bda6951aecd95ee1307d61', 8, 8)}</span>
-                  <span className="hidden sm:inline">{truncateAddress('0x7b6436b0c98f62380866d9432c2af0ee08ce16a171bda6951aecd95ee1307d61', 12, 12)}</span>
-                </p>
+                <div className="text-xs text-blue-600 font-mono mt-1 overflow-hidden">
+                  <div className="break-all">
+                    <span className="sm:hidden">{truncateAddress('0x7b6436b0c98f62380866d9432c2af0ee08ce16a171bda6951aecd95ee1307d61', 8, 8)}</span>
+                    <span className="hidden sm:inline">{truncateAddress('0x7b6436b0c98f62380866d9432c2af0ee08ce16a171bda6951aecd95ee1307d61', 12, 12)}</span>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1258,10 +1293,12 @@ export default function Home() {
                   </button>
                 </div>
                 <div className="flex items-center justify-between">
-                  <code className="text-sm text-blue-700 font-mono bg-blue-100 px-2 py-1 rounded flex-1 mr-3">
-                    <span className="sm:hidden">{truncateAddress(generatedConfigId, 8, 8)}</span>
-                    <span className="hidden sm:inline">{truncateAddress(generatedConfigId, 12, 12)}</span>
-                  </code>
+                  <div className="text-sm text-blue-700 font-mono bg-blue-100 px-2 py-1 rounded flex-1 mr-3 overflow-hidden">
+                    <div className="break-all">
+                      <span className="sm:hidden">{truncateAddress(generatedConfigId, 8, 8)}</span>
+                      <span className="hidden sm:inline">{truncateAddress(generatedConfigId, 12, 12)}</span>
+                    </div>
+                  </div>
                   <button
                     onClick={() => navigator.clipboard.writeText(generatedConfigId)}
                     className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors shrink-0"
@@ -1313,13 +1350,16 @@ export default function Home() {
                     value={readConfigId}
                     onChange={(e) => setReadConfigId(e.target.value)}
                     placeholder="Enter config ID to read or use example above"
-                    className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black font-mono text-sm"
+                    className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black font-mono text-sm overflow-hidden"
+                    style={{ wordBreak: 'break-all', overflowWrap: 'break-word' }}
                   />
                   {readConfigId && (
-                    <p className="mt-1 text-xs text-gray-500 font-mono">
-                      <span className="sm:hidden">{truncateAddress(readConfigId, 8, 8)}</span>
-                      <span className="hidden sm:inline">{truncateAddress(readConfigId, 12, 12)}</span>
-                    </p>
+                    <div className="mt-1 text-xs text-gray-500 font-mono overflow-hidden">
+                      <div className="break-all">
+                        <span className="sm:hidden">{truncateAddress(readConfigId, 8, 8)}</span>
+                        <span className="hidden sm:inline">{truncateAddress(readConfigId, 12, 12)}</span>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1446,6 +1486,18 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* Mobile Telegram Floating Button */}
+      <div className="fixed bottom-6 right-6 z-40 sm:hidden">
+        <a
+          href="https://t.me/selfbuilder"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center w-14 h-14 bg-gradient-to-r from-[#5BFFB6] to-[#4AE6A0] text-black rounded-full shadow-lg hover:shadow-xl transform hover:scale-110 active:scale-95 transition-all duration-300 animate-pulse hover:animate-none"
+        >
+          <Image src="/telegram.webp" alt="Join Telegram" width={24} height={24} className="h-6 w-6 rounded-full" />
+        </a>
+      </div>
 
       {/* Footer */}
       <footer className="bg-black text-white">
