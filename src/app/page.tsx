@@ -896,7 +896,8 @@ export default function Home() {
                         ? 'border-green-300 bg-green-50 focus:border-green-500 focus:ring-green-200'
                         : 'border-gray-200 bg-white focus:border-blue-500 focus:ring-blue-200'
                       }`}
-                    style={{ wordBreak: 'break-all', overflowWrap: 'break-word' }}
+                    style={{ wordBreak: 'break-all', overflowWrap: 'break-word', textOverflow: 'ellipsis', direction: 'ltr' }}
+                    inputMode="text"
                   />
                   {isAddressValid && (
                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -1015,8 +1016,11 @@ export default function Home() {
             <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                 <h4 className="font-semibold text-gray-900 mb-2">Address/URL</h4>
-                <p className={`text-sm ${isAddressValid ? 'text-green-600' : 'text-gray-500'}`}>
-                  {address || 'Not set'}
+                <p className={`text-sm ${isAddressValid ? 'text-green-600' : 'text-gray-500'}`}
+                  style={{wordBreak: 'break-all'}}>
+                  {address
+                    ? truncateAddress(address, 8, 6)
+                    : 'Not set'}
                   {isAddressValid && <span className="ml-2">✓</span>}
                 </p>
               </div>
