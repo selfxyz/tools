@@ -7,7 +7,8 @@ import Image from 'next/image';
 import { QRCodeSVG } from 'qrcode.react';
 import { HUB_CONTRACT_ABI } from '../contracts/hubABI';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { useWalletClient, useAccount } from 'wagmi';
+import { useWalletClient, useAccount, useSwitchChain } from 'wagmi';
+import { celo, celoAlfajores } from 'viem/chains';
 
 // Types
 interface VerificationConfigV2 {
@@ -18,31 +19,6 @@ interface VerificationConfigV2 {
   ofacEnabled: [boolean, boolean, boolean];
 }
 
-// Network configurations
-const NETWORKS = {
-  celo: {
-    chainId: '0xa4ec', // 42220 in hex
-    chainName: 'Celo Mainnet',
-    nativeCurrency: {
-      name: 'CELO',
-      symbol: 'CELO',
-      decimals: 18,
-    },
-    rpcUrls: ['https://forno.celo.org'],
-    blockExplorerUrls: ['https://celoscan.io/'],
-  },
-  alfajores: {
-    chainId: '0xaef3', // 44787 in hex
-    chainName: 'Celo Alfajores Testnet',
-    nativeCurrency: {
-      name: 'CELO',
-      symbol: 'CELO',
-      decimals: 18,
-    },
-    rpcUrls: ['https://alfajores-forno.celo-testnet.org'],
-    blockExplorerUrls: ['https://alfajores.celoscan.io/'],
-  },
-};
 
 export default function Home() {
   const [address, setAddress] = useState('');
@@ -55,6 +31,7 @@ export default function Home() {
   // Wallet state
   const { data: walletClient } = useWalletClient();
   const { isConnected } = useAccount();
+  const { switchChain } = useSwitchChain();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
 
@@ -264,60 +241,19 @@ export default function Home() {
   const addNetworkToMetaMask = async (networkKey: 'celo' | 'alfajores') => {
     setIsNetworkSwitching(true);
     try {
-      if (typeof window.ethereum !== 'undefined') {
-        // First try to switch to the network if it already exists
-        try {
-          await window.ethereum.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: NETWORKS[networkKey].chainId }],
-          });
-          showToast(`Successfully switched to ${NETWORKS[networkKey].chainName} ⚡`, 'success');
-        } catch (switchError: unknown) {
-          const error = switchError as { code?: number; message?: string };
-          console.log('Switch error:', error);
-          
-          // Handle user rejection specifically
-          if (error.code === 4001) {
-            showToast('Network switch request was rejected', 'info');
-            return;
-          }
-          
-          // For any other error (network doesn't exist, unrecognized chain, etc.), try to add the network
-          // This includes error code 4902 (network not found) and other similar errors
-          if (error.code === 4902 || 
-              (error.message && error.message.toLowerCase().includes('unrecognized')) ||
-              (error.message && error.message.toLowerCase().includes('does not exist')) ||
-              (error.message && error.message.toLowerCase().includes('not found'))) {
-            
-            try {
-              console.log('Attempting to add network:', NETWORKS[networkKey]);
-              await window.ethereum.request({
-                method: 'wallet_addEthereumChain',
-                params: [NETWORKS[networkKey]],
-              });
-              showToast(`Successfully added and switched to ${NETWORKS[networkKey].chainName}`, 'success');
-            } catch (addError: unknown) {
-              const addErr = addError as Error;
-              console.error('Error adding network:', addErr);
-              if (addErr.message.includes('4001') || addErr.message.includes('rejected')) {
-                showToast('Network addition was rejected by user', 'info');
-              } else {
-                showToast(`Failed to add network: ${addErr.message}. Please add the network manually in MetaMask.`, 'error');
-              }
-            }
-          } else {
-            // Unexpected error
-            console.error('Unexpected error switching network:', error);
-            showToast(`Failed to switch network: ${error.message || 'Unknown error'}. You may need to add the network manually.`, 'error');
-          }
-        }
-      } else {
-        showToast('Please install MetaMask to add networks', 'error');
-      }
+      const chainToSwitch = networkKey === 'celo' ? celo : celoAlfajores;
+      
+      await switchChain({ chainId: chainToSwitch.id });
+      showToast(`Successfully switched to ${chainToSwitch.name} ⚡`, 'success');
     } catch (error: unknown) {
-      console.error('Error with network operation:', error);
       const err = error as Error;
-      showToast(`Network operation failed: ${err.message || 'Unknown error'}`, 'error');
+      console.error('Error switching network:', err);
+      
+      if (err.message.includes('rejected') || err.message.includes('denied')) {
+        showToast('Network switch request was rejected', 'info');
+      } else {
+        showToast(`Failed to switch network: ${err.message}. Please try again or add the network manually in your wallet.`, 'error');
+      }
     } finally {
       setIsNetworkSwitching(false);
     }
