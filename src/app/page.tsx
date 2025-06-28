@@ -5,6 +5,7 @@ import { hashEndpointWithScope } from '@selfxyz/core';
 import { ethers } from 'ethers';
 import Image from 'next/image';
 import { QRCodeSVG } from 'qrcode.react';
+import { HUB_CONTRACT_ABI } from '../contracts/hubABI';
 
 // Types
 interface VerificationConfigV2 {
@@ -41,15 +42,6 @@ const NETWORKS = {
   },
 };
 
-// Hub contract ABI - Let's try different possible function names
-const HUB_CONTRACT_ABI = [
-  "function setVerificationConfigV2(tuple(bool olderThanEnabled, uint256 olderThan, bool forbiddenCountriesEnabled, uint256[4] forbiddenCountriesListPacked, bool[3] ofacEnabled) config) external returns (bytes32)",
-  // Try multiple possible getter function names
-  "function getVerificationConfigV2(bytes32 configId) external view returns (tuple(bool olderThanEnabled, uint256 olderThan, bool forbiddenCountriesEnabled, uint256[4] forbiddenCountriesListPacked, bool[3] ofacEnabled))",
-  "function verificationConfigs(bytes32 configId) external view returns (tuple(bool olderThanEnabled, uint256 olderThan, bool forbiddenCountriesEnabled, uint256[4] forbiddenCountriesListPacked, bool[3] ofacEnabled))",
-  "function getVerificationConfig(bytes32 configId) external view returns (tuple(bool olderThanEnabled, uint256 olderThan, bool forbiddenCountriesEnabled, uint256[4] forbiddenCountriesListPacked, bool[3] ofacEnabled))",
-  "function generateConfigId(tuple(bool olderThanEnabled, uint256 olderThan, bool forbiddenCountriesEnabled, uint256[4] forbiddenCountriesListPacked, bool[3] ofacEnabled) config) external view returns (bytes32)"
-];
 
 export default function Home() {
   const [address, setAddress] = useState('');
@@ -66,14 +58,21 @@ export default function Home() {
   const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
   const [signer, setSigner] = useState<ethers.JsonRpcSigner | null>(null);
 
-  // Default hub addresses
+  // Default hub addresses and RPC URLs
   const DEFAULT_HUB_ADDRESSES = {
     celo: '0xe57F4773bd9c9d8b6Cd70431117d353298B9f5BF',
     alfajores: '0x68c931C9a534D37aa78094877F46fE46a49F1A51'
   };
 
+  const RPC_URLS = {
+    celo: 'https://forno.celo.org',
+    alfajores: 'https://alfajores-forno.celo-testnet.org'
+  };
+
+  // Network selection for both operations
+  const [selectedNetwork, setSelectedNetwork] = useState<'celo' | 'alfajores'>('celo');
+
   // Verification config state
-  const [hubContractAddress, setHubContractAddress] = useState('');
   const [olderThanEnabled, setOlderThanEnabled] = useState(false);
   const [olderThan, setOlderThan] = useState('0');
   const [forbiddenCountriesEnabled, setForbiddenCountriesEnabled] = useState(false);
@@ -233,13 +232,8 @@ export default function Home() {
 
   // Verification config functions
   const setVerificationConfig = async () => {
-    if (!signer || !hubContractAddress) {
-      setConfigError('Please connect wallet and enter hub contract address');
-      return;
-    }
-
-    if (!validateEthereumAddress(hubContractAddress)) {
-      setConfigError('Please enter a valid hub contract address');
+    if (!signer) {
+      setConfigError('Please connect wallet first');
       return;
     }
 
@@ -248,6 +242,7 @@ export default function Home() {
       setConfigSuccess('');
       setGeneratedConfigId('');
 
+      const hubContractAddress = DEFAULT_HUB_ADDRESSES[selectedNetwork];
       const contract = new ethers.Contract(hubContractAddress, HUB_CONTRACT_ABI, signer);
 
       const config = {
@@ -287,13 +282,15 @@ export default function Home() {
   };
 
   const readVerificationConfig = async () => {
-    if (!hubContractAddress) {
-      setReadConfigError('Please enter a hub contract address');
+    // Step 1: Input validation - Check Config ID format
+    if (!readConfigId.trim()) {
+      setReadConfigError('Please enter a config ID');
       return;
     }
 
-    if (!readConfigId.trim()) {
-      setReadConfigError('Please enter a config ID');
+    // Validate config ID format (should be a 32-byte hex string)
+    if (!readConfigId.match(/^0x[a-fA-F0-9]{64}$/)) {
+      setReadConfigError('Config ID must be a valid 32-byte hex string (0x followed by 64 hex characters)');
       return;
     }
 
@@ -302,29 +299,34 @@ export default function Home() {
       setReadConfigResult(null);
 
       // Create a provider for reading (no wallet connection needed for view functions)
-      const readProvider = new ethers.JsonRpcProvider('https://forno.celo.org');
+      const readProvider = new ethers.JsonRpcProvider(RPC_URLS[selectedNetwork]);
+      const hubContractAddress = DEFAULT_HUB_ADDRESSES[selectedNetwork];
       const contract = new ethers.Contract(hubContractAddress, HUB_CONTRACT_ABI, readProvider);
 
-      // Try different possible function names
-      let config;
-      let functionUsed = '';
-
-      try {
-        config = await contract.getVerificationConfigV2(readConfigId);
-        functionUsed = 'getVerificationConfigV2';
-      } catch {
-        try {
-          config = await contract.verificationConfigs(readConfigId);
-          functionUsed = 'verificationConfigs';
-        } catch {
-          try {
-            config = await contract.getVerificationConfig(readConfigId);
-            functionUsed = 'getVerificationConfig';
-          } catch {
-            throw new Error('None of the expected getter functions exist on this contract. Tried: getVerificationConfigV2, verificationConfigs, getVerificationConfig');
-          }
-        }
+      // Step 2: Check existence - Use verificationConfigV2Exists to confirm configuration exists
+      console.log('Checking if configuration exists...');
+      const exists = await contract.verificationConfigV2Exists(readConfigId);
+      
+      if (!exists) {
+        setReadConfigError(
+          `Configuration with this ID does not exist on the contract.\n\n` +
+          `Please check:\n` +
+          `• Config ID is correct\n` +
+          `• Hub contract address is correct\n` +
+          `• Connected to the correct network\n` +
+          `• The configuration was successfully deployed`
+        );
+        return;
       }
+
+      // Step 3: Read configuration - Only call getVerificationConfigV2 when configuration exists
+      console.log('Configuration exists, reading details...');
+      const config = await contract.getVerificationConfigV2(readConfigId);
+
+      // Check if this is an empty configuration (user wants to verify nothing - this is valid)
+      const isEmpty = !config.olderThanEnabled && 
+                     !config.forbiddenCountriesEnabled && 
+                     !config.ofacEnabled.some((enabled: boolean) => enabled);
 
       setReadConfigResult({
         olderThanEnabled: config.olderThanEnabled,
@@ -339,19 +341,68 @@ export default function Home() {
         ofacEnabled: config.ofacEnabled
       });
 
-      // Show which function worked in the console
-      console.log(`Successfully read config using function: ${functionUsed}`);
+      if (isEmpty) {
+        console.log('✅ Configuration found - No verification requirements (user wants to verify nothing)');
+      } else {
+        console.log('✅ Configuration found with verification requirements');
+      }
 
     } catch (error: unknown) {
       console.error('Error reading verification config:', error);
-      let errorMessage = (error as Error).message;
+      const errorObj = error as Error;
+      let errorMessage = errorObj.message;
 
-      // Check for common errors
-      if (errorMessage.includes('missing revert data') || errorMessage.includes('CALL_EXCEPTION')) {
-        errorMessage = 'Config ID not found or function call failed. Possible reasons:\n• Config ID does not exist in the contract\n• Wrong hub contract address\n• Network mismatch\n• Function does not exist on this contract';
+      // Step 4: Detailed error reporting - Provide specific error reasons and suggestions
+      if (errorMessage.includes('could not decode result data') && errorMessage.includes('value="0x"')) {
+        errorMessage = 
+          `Function returned empty data. Possible reasons:\n\n` +
+          `• Incorrect hub contract address\n` +
+          `• Connected to wrong network\n` +
+          `• Contract does not exist at this address\n` +
+          `• Contract version mismatch\n\n` +
+          `Suggestions:\n` +
+          `• Check official docs for correct address\n` +
+          `• Verify network settings`;
+      } else if (errorMessage.includes('missing revert data') || errorMessage.includes('CALL_EXCEPTION')) {
+        errorMessage = 
+          `Contract call failed. Possible reasons:\n\n` +
+          `• Wrong hub contract address\n` +
+          `• Network mismatch\n` +
+          `• Contract does not exist\n` +
+          `• RPC node issues\n\n` +
+          `Suggestions:\n` +
+          `• Verify the address is correct\n` +
+          `• Ensure you're on Celo network\n` +
+          `• Try refreshing the page`;
+      } else if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
+        errorMessage = 
+          `Network connection error.\n\n` +
+          `Possible causes:\n` +
+          `• Unstable internet connection\n` +
+          `• RPC node temporarily unavailable\n` +
+          `• Firewall blocking requests\n\n` +
+          `Suggestions:\n` +
+          `• Check internet connection\n` +
+          `• Try again later\n` +
+          `• Try using VPN`;
+      } else if (errorMessage.includes('timeout')) {
+        errorMessage = 
+          `Request timed out.\n\n` +
+          `Suggestions:\n` +
+          `• Network may be slow, please try again later\n` +
+          `• Check network connection\n` +
+          `• Try refreshing the page`;
+      } else {
+        // Generic error with additional context
+        errorMessage = 
+          `Error reading configuration:\n${errorMessage}\n\n` +
+          `If the problem persists, please:\n` +
+          `• Verify all inputs are correct\n` +
+          `• Check network connection\n` +
+          `• Contact technical support`;
       }
 
-      setReadConfigError('Failed to read verification config: ' + errorMessage);
+      setReadConfigError(errorMessage);
     }
   };
 
@@ -631,95 +682,105 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Set Verification Config Section */}
+        {/* Hub Contract Operations Section */}
         <div className="bg-gray-50 rounded-lg p-6 border">
-          <h2 className="text-2xl font-semibold text-black mb-4">⚙️ Set Verification Config</h2>
+          <h2 className="text-2xl font-semibold text-black mb-4">🏛️ Hub Contract Operations</h2>
           <p className="text-gray-600 mb-6">
-            Configure verification parameters and deploy to the hub contract
+            Configure verification parameters, deploy to the hub contract, and read existing configurations
           </p>
 
-          <div className="space-y-4">
-            {/* Hub Contract Address */}
-            <div>
-              <label htmlFor="hubAddress" className="block text-sm font-medium text-black mb-2">
-                Hub Contract Address
+          {/* Unified Network Selection */}
+          <div className="bg-white border border-gray-200 rounded-lg p-4 mb-8">
+            <h4 className="text-gray-800 font-medium mb-3">🌐 Select Network</h4>
+            <div className="flex gap-6">
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="radio"
+                  name="unified-network"
+                  value="celo"
+                  checked={selectedNetwork === 'celo'}
+                  onChange={(e) => setSelectedNetwork(e.target.value as 'celo' | 'alfajores')}
+                  className="mr-3"
+                />
+                <Image src="/celo.webp" alt="Celo" width={24} height={24} className="h-6 w-6 mr-3 rounded-full" />
+                <div>
+                  <div className="text-sm font-medium text-black">Celo Mainnet</div>
+                  <div className="text-xs text-gray-500">{DEFAULT_HUB_ADDRESSES.celo}</div>
+                </div>
               </label>
-              <input
-                id="hubAddress"
-                type="text"
-                value={hubContractAddress}
-                onChange={(e) => setHubContractAddress(e.target.value)}
-                placeholder="Enter hub contract address or use defaults below"
-                className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-              />
-
-              {/* Default Hub Addresses */}
-              <div className="mt-3 space-y-2">
-                <p className="text-sm font-medium text-gray-700">Default Hub Addresses:</p>
-
-                <div className="flex items-center justify-between bg-white border rounded-lg p-3">
-                  <div>
-                    <div className="flex items-center">
-                      <Image src="/celo.webp" alt="Celo" width={20} height={24} className="h-5 w-6 mr-2 rounded-full" />
-                      <span className="font-medium text-sm text-black">Celo:</span>
-                    </div>
-                    <code className="text-xs text-gray-600 font-mono">{DEFAULT_HUB_ADDRESSES.celo}</code>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setHubContractAddress(DEFAULT_HUB_ADDRESSES.celo)}
-                      className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                    >
-                      Use
-                    </button>
-                    <button
-                      onClick={() => navigator.clipboard.writeText(DEFAULT_HUB_ADDRESSES.celo)}
-                      className="px-3 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
-                    >
-                      Copy
-                    </button>
-                  </div>
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="radio"
+                  name="unified-network"
+                  value="alfajores"
+                  checked={selectedNetwork === 'alfajores'}
+                  onChange={(e) => setSelectedNetwork(e.target.value as 'celo' | 'alfajores')}
+                  className="mr-3"
+                />
+                <Image src="/celo_testnet.webp" alt="Celo Testnet" width={24} height={24} className="h-6 w-6 mr-3 rounded-full" />
+                <div>
+                  <div className="text-sm font-medium text-black">Celo Testnet (Alfajores)</div>
+                  <div className="text-xs text-gray-500">{DEFAULT_HUB_ADDRESSES.alfajores}</div>
                 </div>
+              </label>
+            </div>
+            <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded">
+              <p className="text-xs text-green-700">
+                ✅ <strong>Active:</strong> {selectedNetwork === 'celo' ? 'Celo Mainnet' : 'Celo Testnet (Alfajores)'} - 
+                Hub: <code className="bg-green-100 px-1 rounded">{DEFAULT_HUB_ADDRESSES[selectedNetwork]}</code>
+              </p>
+              <p className="text-xs text-green-600 mt-1">
+                ℹ️ This network selection applies to both Set and Read operations
+              </p>
+            </div>
+          </div>
 
-                <div className="flex items-center justify-between bg-white border rounded-lg p-3">
-                  <div>
-                    <div className="flex items-center">
-                      <Image src="/celo_testnet.webp" alt="Celo Testnet" width={20} height={24} className="h-5 w-6 mr-2 rounded-full" />
-                      <span className="font-medium text-sm text-black">Celo Testnet:</span>
-                    </div>
-                    <code className="text-xs text-gray-600 font-mono">{DEFAULT_HUB_ADDRESSES.alfajores}</code>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setHubContractAddress(DEFAULT_HUB_ADDRESSES.alfajores)}
-                      className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                    >
-                      Use
-                    </button>
-                    <button
-                      onClick={() => navigator.clipboard.writeText(DEFAULT_HUB_ADDRESSES.alfajores)}
-                      className="px-3 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
-                    >
-                      Copy
-                    </button>
-                  </div>
-                </div>
+          {/* Set Verification Config Section */}
+          <div className="mb-12">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-xl font-semibold text-black">⚙️ Set Verification Config</h3>
+                <p className="text-gray-600 text-sm mt-1">
+                  Configure what verification requirements users must meet
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  // Load default example configuration (empty - no verification requirements)
+                  setOlderThanEnabled(false);
+                  setOlderThan('0');
+                  setForbiddenCountriesEnabled(false);
+                  setForbiddenCountriesPacked(['0', '0', '0', '0']);
+                  setOfacEnabled([false, false, false]);
+                }}
+                className="px-4 py-2 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+              >
+                📋 Load Example Config
+              </button>
+            </div>
 
-                <div className="p-2 bg-blue-50 border border-blue-200 rounded">
-                  <p className="text-xs text-blue-700">
-                    💡 <strong>Hint:</strong> Double-check these hub addresses with the ones in the{' '}
-                    <a
-                      href="https://docs.self.xyz"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-800 underline hover:text-blue-900"
-                    >
-                      official documentation
-                    </a>
-                  </p>
-                </div>
+            {/* Example Config Info */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <h4 className="text-blue-800 font-medium mb-2">💡 Example Configuration</h4>
+              <p className="text-blue-700 text-sm mb-3">
+                Try the &ldquo;Load Example Config&rdquo; button to see a sample setup with <strong>no verification requirements</strong>:
+              </p>
+              <ul className="text-blue-600 text-sm space-y-1 ml-4">
+                <li>• Age verification: <strong>Disabled</strong> (allows all ages)</li>
+                <li>• Forbidden countries: <strong>Disabled</strong> (allows all countries)</li>
+                <li>• OFAC compliance: <strong>Disabled</strong> (no OFAC checks)</li>
+              </ul>
+              <p className="text-blue-700 text-sm mt-3">
+                This creates an <em>open configuration</em> where all users can verify without restrictions.
+              </p>
+              <div className="mt-3 p-2 bg-blue-100 rounded">
+                <p className="text-xs text-blue-600 font-mono">
+                  Expected Config ID: 0x7b6436b0c98f62380866d9432c2af0ee08ce16a171bda6951aecd95ee1307d61
+                </p>
               </div>
             </div>
+
+          <div className="space-y-4">
 
             {/* Age Verification */}
             <div>
@@ -847,58 +908,116 @@ export default function Home() {
                 </p>
               </div>
             )}
+
+            </div>
           </div>
-        </div>
 
-        {/* Read Verification Config Section */}
-        <div className="bg-gray-50 rounded-lg p-6 border">
-          <h2 className="text-2xl font-semibold text-black mb-4">📖 Read Verification Config</h2>
-          <p className="text-gray-600 mb-6">
-            Read verification configuration by config ID from the hub contract (no wallet connection required)
-          </p>
+          {/* Divider */}
+          <div className="border-t border-gray-300 my-8"></div>
 
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="readConfigId" className="block text-sm font-medium text-black mb-2">
-                Config ID
-              </label>
-              <input
-                id="readConfigId"
-                type="text"
-                value={readConfigId}
-                onChange={(e) => setReadConfigId(e.target.value)}
-                placeholder="0x..."
-                className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-              />
+          {/* Read Config Section */}
+          <div>
+            <div className="mb-6">
+              <h3 className="text-xl font-semibold text-black">📖 Read Verification Config</h3>
+              <p className="text-gray-600 text-sm mt-1">
+                Read verification configuration by config ID (no wallet connection required)
+              </p>
             </div>
 
-            <button
-              onClick={readVerificationConfig}
-              className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-            >
-              Read Config
-            </button>
+            <div className="space-y-4">
 
-            {readConfigError && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700">
-                {readConfigError}
-              </div>
-            )}
-
-            {readConfigResult && (
-              <div className="p-4 bg-white border rounded-lg">
-                <h3 className="font-semibold text-black mb-3">Configuration Details:</h3>
-                <div className="space-y-2 text-sm">
-                  <p><span className="font-medium">Older Than Enabled:</span> {readConfigResult.olderThanEnabled ? 'Yes' : 'No'}</p>
-                  <p><span className="font-medium">Older Than:</span> {readConfigResult.olderThan.toString()}</p>
-                  <p><span className="font-medium">Forbidden Countries Enabled:</span> {readConfigResult.forbiddenCountriesEnabled ? 'Yes' : 'No'}</p>
-                  <p><span className="font-medium">Forbidden Countries Packed:</span> [{readConfigResult.forbiddenCountriesListPacked.map(n => n.toString()).join(', ')}]</p>
-                  <p><span className="font-medium">OFAC Enabled:</span> [{readConfigResult.ofacEnabled.map(String).join(', ')}]</p>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label htmlFor="readConfigId" className="block text-sm font-medium text-black">
+                    Config ID
+                  </label>
+                  <button
+                    onClick={() => setReadConfigId('0x7b6436b0c98f62380866d9432c2af0ee08ce16a171bda6951aecd95ee1307d61')}
+                    className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors"
+                  >
+                    📋 Use Example ID
+                  </button>
                 </div>
+                <input
+                  id="readConfigId"
+                  type="text"
+                  value={readConfigId}
+                  onChange={(e) => setReadConfigId(e.target.value)}
+                  placeholder="Enter config ID to read"
+                  className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
+                />
               </div>
-            )}
+
+              <button
+                onClick={readVerificationConfig}
+                className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                Read Config
+              </button>
+
+              {/* Read Config Status Messages */}
+              {readConfigError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <p className="text-red-600 text-sm">{readConfigError}</p>
+                </div>
+              )}
+
+              {readConfigResult && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h4 className="text-blue-800 font-medium mb-3">Configuration Found:</h4>
+                  
+                  {/* Check if configuration is empty (no verification requirements) */}
+                  {!readConfigResult.olderThanEnabled && 
+                   !readConfigResult.forbiddenCountriesEnabled && 
+                   !readConfigResult.ofacEnabled.some(enabled => enabled) ? (
+                    <div className="bg-green-50 border border-green-200 rounded p-3 mb-3">
+                      <p className="text-green-700 font-medium">✅ No Verification Requirements</p>
+                      <p className="text-green-600 text-sm mt-1">
+                        This configuration allows all users to verify without any restrictions. 
+                        The user has chosen to verify nothing - this is a valid configuration.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="bg-orange-50 border border-orange-200 rounded p-3 mb-3">
+                      <p className="text-orange-700 font-medium">⚠️ Verification Requirements Active</p>
+                      <p className="text-orange-600 text-sm mt-1">
+                        This configuration has active verification requirements as detailed below.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-blue-700 font-medium">Older Than Enabled:</span>
+                      <span className="text-blue-600">{readConfigResult.olderThanEnabled ? 'Yes' : 'No'}</span>
+                    </div>
+                    {readConfigResult.olderThanEnabled && (
+                      <div className="flex justify-between">
+                        <span className="text-blue-700 font-medium">Minimum Age:</span>
+                        <span className="text-blue-600">{readConfigResult.olderThan.toString()}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-blue-700 font-medium">Forbidden Countries Enabled:</span>
+                      <span className="text-blue-600">{readConfigResult.forbiddenCountriesEnabled ? 'Yes' : 'No'}</span>
+                    </div>
+                    {readConfigResult.forbiddenCountriesEnabled && (
+                      <div className="flex justify-between">
+                        <span className="text-blue-700 font-medium">Forbidden Countries:</span>
+                        <span className="text-blue-600 font-mono">[{readConfigResult.forbiddenCountriesListPacked.map(n => n.toString()).join(', ')}]</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-blue-700 font-medium">OFAC Enabled:</span>
+                      <span className="text-blue-600">[{readConfigResult.ofacEnabled.map(b => b ? 'Yes' : 'No').join(', ')}]</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
+
 
       </div>
     </div>
