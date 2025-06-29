@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { hashEndpointWithScope } from '@selfxyz/core';
+import { hashEndpointWithScope, countryCodes } from '@selfxyz/core';
 import { ethers } from 'ethers';
 import Image from 'next/image';
 import { QRCodeSVG } from 'qrcode.react';
@@ -9,6 +9,9 @@ import { HUB_CONTRACT_ABI } from '../contracts/hubABI';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useWalletClient, useAccount, useSwitchChain } from 'wagmi';
 import { celo, celoAlfajores } from 'viem/chains';
+
+// Constants
+const MAX_FORBIDDEN_COUNTRIES_LIST_LENGTH = 40;
 
 // Types
 interface VerificationConfigV2 {
@@ -19,6 +22,36 @@ interface VerificationConfigV2 {
   ofacEnabled: [boolean, boolean, boolean];
 }
 
+// Country formatting function
+export function formatCountriesList(countries: string[]) {
+  // Check maximum list length
+  if (countries.length > MAX_FORBIDDEN_COUNTRIES_LIST_LENGTH) {
+    throw new Error(
+      `Countries list must be inferior or equals to ${MAX_FORBIDDEN_COUNTRIES_LIST_LENGTH}`
+    );
+  }
+
+  // Validate country codes
+  for (const country of countries) {
+    if (!country || country.length !== 3) {
+      throw new Error(
+        `Invalid country code: "${country}". Country codes must be exactly 3 characters long.`
+      );
+    }
+  }
+
+  const paddedCountries = countries.concat(
+    Array(MAX_FORBIDDEN_COUNTRIES_LIST_LENGTH - countries.length).fill('')
+  );
+  const result = paddedCountries.flatMap((country) => {
+    const chars = country
+      .padEnd(3, '\0')
+      .split('')
+      .map((char) => char.charCodeAt(0));
+    return chars;
+  });
+  return result;
+}
 
 export default function Home() {
   const [address, setAddress] = useState('');
@@ -30,7 +63,7 @@ export default function Home() {
 
   // Wallet state
   const { data: walletClient } = useWalletClient();
-  const { isConnected } = useAccount();
+  const { isConnected, chain: currentChain } = useAccount();
   const { switchChain } = useSwitchChain();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
@@ -46,8 +79,47 @@ export default function Home() {
     alfajores: 'https://alfajores-forno.celo-testnet.org'
   };
 
-  // Network selection for both operations
-  const [selectedNetwork, setSelectedNetwork] = useState<'celo' | 'alfajores'>('celo');
+  // Get current network from wallet connection
+  const getCurrentNetwork = () => {
+    if (!currentChain) return null;
+    
+    if (currentChain.id === celo.id) {
+      return {
+        key: 'celo' as const,
+        name: 'Celo Mainnet',
+        hubAddress: DEFAULT_HUB_ADDRESSES.celo,
+        rpcUrl: RPC_URLS.celo,
+        chain: celo
+      };
+    } else if (currentChain.id === celoAlfajores.id) {
+      return {
+        key: 'alfajores' as const,
+        name: 'Celo Testnet (Alfajores)',
+        hubAddress: DEFAULT_HUB_ADDRESSES.alfajores,
+        rpcUrl: RPC_URLS.alfajores,
+        chain: celoAlfajores
+      };
+    }
+    
+    return null; // Unsupported network
+  };
+
+  // Check if current wallet network is supported
+  const isNetworkSupported = () => {
+    return getCurrentNetwork() !== null;
+  };
+
+  // Get Celoscan URL for transaction
+  const getCeloscanUrl = (txHash: string) => {
+    const network = getCurrentNetwork();
+    if (!network) return null;
+    
+    const baseUrl = network.key === 'celo' 
+      ? 'https://celoscan.io/tx/' 
+      : 'https://alfajores.celoscan.io/tx/';
+    
+    return baseUrl + txHash;
+  };
 
   // Verification config state
   const [olderThanEnabled, setOlderThanEnabled] = useState(false);
@@ -58,6 +130,14 @@ export default function Home() {
   const [configError, setConfigError] = useState('');
   const [configSuccess, setConfigSuccess] = useState('');
   const [generatedConfigId, setGeneratedConfigId] = useState('');
+  const [transactionHash, setTransactionHash] = useState('');
+  const [transactionStatus, setTransactionStatus] = useState<'idle' | 'pending' | 'confirmed' | 'failed'>('idle');
+
+  // Country selection state
+  const [showCountryModal, setShowCountryModal] = useState(false);
+  const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
+  const [countrySelectionError, setCountrySelectionError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Read config state
   const [readConfigId, setReadConfigId] = useState('');
@@ -236,8 +316,6 @@ export default function Home() {
     }
   };
 
-
-
   const addNetworkToMetaMask = async (networkKey: 'celo' | 'alfajores') => {
     setIsNetworkSwitching(true);
     try {
@@ -259,6 +337,37 @@ export default function Home() {
     }
   };
 
+  // Generate config ID using the contract's function to ensure accuracy
+  const generateConfigIdFromContract = async (config: VerificationConfigV2) => {
+    try {
+      const currentNetwork = getCurrentNetwork();
+      if (!currentNetwork) {
+        throw new Error('No supported network detected');
+      }
+
+      // Create a provider for calling the pure function (no wallet needed)
+      const readProvider = new ethers.JsonRpcProvider(currentNetwork.rpcUrl);
+      const contract = new ethers.Contract(currentNetwork.hubAddress, HUB_CONTRACT_ABI, readProvider);
+
+      // Call the contract's generateConfigId function (it's pure, so no gas cost)
+      const configId = await contract.generateConfigId(config);
+      return configId;
+    } catch (error) {
+      console.error('Error generating config ID from contract:', error);
+      // Fallback to local generation if contract call fails
+      return ethers.solidityPackedKeccak256(
+        ['bool', 'uint256', 'bool', 'uint256[4]', 'bool[3]'],
+        [
+          config.olderThanEnabled,
+          config.olderThan,
+          config.forbiddenCountriesEnabled,
+          config.forbiddenCountriesListPacked,
+          config.ofacEnabled
+        ]
+      );
+    }
+  };
+
   // Verification config functions
   const setVerificationConfig = async () => {
     if (!walletClient) {
@@ -271,12 +380,27 @@ export default function Home() {
       setConfigError('');
       setConfigSuccess('');
       setGeneratedConfigId('');
+      setTransactionHash('');
+      setTransactionStatus('idle');
 
       // Create ethers provider and signer from wagmi walletClient
       const provider = new ethers.BrowserProvider(walletClient.transport);
       const signer = await provider.getSigner();
 
-      const hubContractAddress = DEFAULT_HUB_ADDRESSES[selectedNetwork];
+      const currentNetwork = getCurrentNetwork();
+      if (!currentNetwork) {
+        throw new Error(`Unsupported network. Please switch to Celo Mainnet or Testnet in your wallet.`);
+      }
+
+      console.log('🌐 Using network from wallet:', {
+        name: currentNetwork.name,
+        chainId: currentChain?.id,
+        hubAddress: currentNetwork.hubAddress,
+        rpcUrl: currentNetwork.rpcUrl
+      });
+
+      const hubContractAddress = currentNetwork.hubAddress;
+      
       const contract = new ethers.Contract(hubContractAddress, HUB_CONTRACT_ABI, signer);
 
       const config = {
@@ -292,26 +416,67 @@ export default function Home() {
         ofacEnabled: ofacEnabled
       };
 
-      // First, get the config ID that will be generated
-      const configId = await contract.generateConfigId(config);
+      console.log('Config to deploy:', config);
 
-      // Then set the verification config
+      // Generate config ID using the contract function to ensure accuracy
+      const localConfigId = await generateConfigIdFromContract(config);
+      console.log('Generated config ID from contract:', localConfigId);
+
+      // Check if this config already exists on the contract
+      const configExists = await contract.verificationConfigV2Exists(localConfigId);
+      console.log('Config exists on contract:', configExists);
+
+      if (configExists) {
+        // Config already exists, no need to deploy again
+        setGeneratedConfigId(localConfigId);
+        setTransactionStatus('idle'); // No transaction needed
+        setConfigSuccess('✅ Configuration already exists on-chain! No transaction needed (gas saved).');
+        setTimeout(() => setConfigSuccess(''), 7000);
+        return;
+      }
+
+      // Config doesn't exist, proceed with deployment
+      console.log('Config does not exist, deploying...');
       const tx = await contract.setVerificationConfigV2(config);
-      await tx.wait();
+      console.log('Transaction sent:', tx.hash);
+      
+      // Set transaction hash and pending status
+      setTransactionHash(tx.hash);
+      setTransactionStatus('pending');
+      setConfigSuccess('🕐 Transaction sent! Waiting for confirmation...');
+      
+      // Wait for transaction confirmation
+      const receipt = await tx.wait();
+      console.log('Transaction confirmed:', receipt);
 
-      setGeneratedConfigId(configId);
-      setConfigSuccess('Verification config set successfully!');
-      setTimeout(() => setConfigSuccess(''), 5000); // Only clear success message, keep config ID
+      // Transaction confirmed successfully
+      setTransactionStatus('confirmed');
+      setGeneratedConfigId(localConfigId);
+      setConfigSuccess('✅ Verification config deployed successfully!');
+      setTimeout(() => {
+        setConfigSuccess('');
+        setTransactionHash('');
+        setTransactionStatus('idle');
+      }, 10000); // Keep success message longer to show tx hash
+
     } catch (error: unknown) {
       console.error('Error setting verification config:', error);
       let errorMessage = (error as Error).message;
 
-      // Check for common permission errors
-      if (errorMessage.includes('CALL_EXCEPTION') || errorMessage.includes('execution reverted')) {
+      // Enhanced error handling
+      if (errorMessage.includes('could not decode result data') && errorMessage.includes('value="0x"')) {
+        const network = getCurrentNetwork();
+        errorMessage = `Contract not found or invalid at address ${network?.hubAddress || 'unknown'} on ${network?.name || 'current'} network. Please check:\n\n• Contract address is correct\n• You're connected to the right network\n• Contract is deployed on this network`;
+      } else if (errorMessage.includes('CALL_EXCEPTION') || errorMessage.includes('execution reverted')) {
         errorMessage = 'Transaction reverted. This is likely because you are not the contract owner. Only the contract owner can set verification configs.';
+      } else if (errorMessage.includes('insufficient funds')) {
+        errorMessage = 'Insufficient funds to pay for transaction. Please ensure you have enough tokens for gas fees.';
+      } else if (errorMessage.includes('rejected') || errorMessage.includes('denied')) {
+        errorMessage = 'Transaction was rejected by the user.';
       }
 
       setConfigError('Failed to set verification config: ' + errorMessage);
+      setTransactionStatus('failed');
     } finally {
       setIsConfigDeploying(false);
     }
@@ -335,9 +500,23 @@ export default function Home() {
       setReadConfigError('');
       setReadConfigResult(null);
 
+      // Get network info from wallet or default to Celo mainnet for reading
+      const currentNetwork = getCurrentNetwork();
+      const networkToUse = currentNetwork || {
+        name: 'Celo Mainnet (default)',
+        hubAddress: DEFAULT_HUB_ADDRESSES.celo,
+        rpcUrl: RPC_URLS.celo
+      };
+
+      console.log('🌐 Reading from network:', {
+        name: networkToUse.name,
+        hubAddress: networkToUse.hubAddress,
+        rpcUrl: networkToUse.rpcUrl
+      });
+
       // Create a provider for reading (no wallet connection needed for view functions)
-      const readProvider = new ethers.JsonRpcProvider(RPC_URLS[selectedNetwork]);
-      const hubContractAddress = DEFAULT_HUB_ADDRESSES[selectedNetwork];
+      const readProvider = new ethers.JsonRpcProvider(networkToUse.rpcUrl);
+      const hubContractAddress = networkToUse.hubAddress;
       const contract = new ethers.Contract(hubContractAddress, HUB_CONTRACT_ABI, readProvider);
 
       // Step 2: Check existence - Use verificationConfigV2Exists to confirm configuration exists
@@ -445,6 +624,53 @@ export default function Home() {
     }
   };
 
+  // Age change handler
+  const handleAgeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newAge = parseInt(e.target.value);
+    setOlderThan(newAge.toString());
+  };
+
+  // Country selection handlers
+  const handleCountryToggle = (countryCode: string) => {
+    setSelectedCountries(prev => {
+      if (prev.includes(countryCode)) {
+        setCountrySelectionError(null);
+        return prev.filter(c => c !== countryCode);
+      }
+      
+      if (prev.length >= MAX_FORBIDDEN_COUNTRIES_LIST_LENGTH) {
+        setCountrySelectionError(`Maximum ${MAX_FORBIDDEN_COUNTRIES_LIST_LENGTH} countries can be excluded`);
+        return prev;
+      }
+      
+      return [...prev, countryCode];
+    });
+  };
+
+  const saveCountrySelection = () => {
+    try {
+      const formattedList = formatCountriesList(selectedCountries);
+      
+      // Convert to the required packed format for the contract
+      const packed: [string, string, string, string] = ['0', '0', '0', '0'];
+      
+      // Pack the formatted list into 4 uint256 values
+      for (let i = 0; i < 4; i++) {
+        let value = BigInt(0);
+        for (let j = 0; j < 30 && (i * 30 + j) < formattedList.length; j++) {
+          value += BigInt(formattedList[i * 30 + j]) * (BigInt(256) ** BigInt(j));
+        }
+        packed[i] = value.toString();
+      }
+      
+      setForbiddenCountriesPacked(packed);
+      setShowCountryModal(false);
+      setCountrySelectionError(null);
+    } catch (error) {
+      setCountrySelectionError((error as Error).message);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white">
       {/* Navigation Header */}
@@ -537,22 +763,7 @@ export default function Home() {
                     '--particle-vy': `${particle.vy * 30}px`,
                   } as React.CSSProperties & { [key: string]: string }}
                 >
-                  <style jsx>{`
-                    @keyframes particleFloat {
-                      0% {
-                        opacity: 0;
-                        transform: translate(-50%, -50%) scale(0.3) rotate(${particle.rotation}deg);
-                      }
-                      15% {
-                        opacity: 1;
-                        transform: translate(-50%, -50%) scale(${particle.scale * 1.2}) rotate(${particle.rotation + 180}deg);
-                      }
-                      100% {
-                        opacity: 0;
-                        transform: translate(calc(-50% + var(--particle-vx)), calc(-50% + var(--particle-vy))) scale(0.6) rotate(${particle.rotation + 360}deg);
-                      }
-                    }
-                  `}</style>
+
                   {particle.emoji}
                 </div>
               ))}
@@ -750,7 +961,6 @@ export default function Home() {
             </div>
           </div>
 
-
           <div className="max-w-2xl mx-auto">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Address Input */}
@@ -923,80 +1133,48 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Unified Network Selection */}
+            {/* Current Network Status */}
             <div className="bg-gradient-to-r from-gray-50 to-blue-50 border border-gray-200 rounded-xl p-6 mb-8">
               <h4 className="text-gray-900 font-semibold mb-4 flex items-center">
                 <span className="w-6 h-6 bg-blue-100 rounded-lg flex items-center justify-center mr-3 text-sm">🌐</span>
-                Network Selection
+                Network Status
               </h4>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <label className={`flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                  selectedNetwork === 'celo' 
-                    ? 'border-blue-500 bg-blue-50' 
-                    : 'border-gray-200 bg-white hover:border-gray-300'
-                }`}>
-                  <input
-                    type="radio"
-                    name="unified-network"
-                    value="celo"
-                    checked={selectedNetwork === 'celo'}
-                    onChange={(e) => setSelectedNetwork(e.target.value as 'celo' | 'alfajores')}
-                    className="mr-4"
-                  />
-                  <Image src="/celo.webp" alt="Celo" width={32} height={32} className="h-8 w-8 mr-4 rounded-full" />
-                  <div className="flex-1">
-                    <div className="text-sm font-semibold text-gray-900">Celo Mainnet</div>
-                    <div className="text-xs text-gray-600 font-mono overflow-hidden">
-                      <div className="break-all">
-                        <span className="sm:hidden">{truncateAddress(DEFAULT_HUB_ADDRESSES.celo, 6, 4)}</span>
-                        <span className="hidden sm:inline">{truncateAddress(DEFAULT_HUB_ADDRESSES.celo, 8, 6)}</span>
-                      </div>
+              {!isConnected ? (
+                <div className="bg-gray-100 border border-gray-300 rounded-lg p-4">
+                  <p className="text-gray-600 text-sm flex items-center">
+                    <span className="text-gray-400 mr-2">⏳</span>
+                    <strong>No wallet connected.</strong> Please connect your wallet to see network status.
+                  </p>
+                </div>
+              ) : !isNetworkSupported() ? (
+                <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4">
+                  <div className="flex items-start">
+                    <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center mr-3 mt-0.5">
+                      <span className="text-lg">❌</span>
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-bold text-red-800 mb-2">Unsupported Network</h4>
+                      <p className="text-red-700 text-sm mb-3">
+                        Your wallet is connected to <strong>{currentChain?.name}</strong>, which is not supported.
+                      </p>
+                      <p className="text-red-600 text-xs mb-3">
+                        Please switch to Celo Mainnet or Testnet to use this application.
+                      </p>
                     </div>
                   </div>
-                  {selectedNetwork === 'celo' && (
-                    <span className="text-blue-500 text-lg">✓</span>
-                  )}
-                </label>
-                
-                <label className={`flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                  selectedNetwork === 'alfajores' 
-                    ? 'border-amber-500 bg-amber-50' 
-                    : 'border-gray-200 bg-white hover:border-gray-300'
-                }`}>
-                  <input
-                    type="radio"
-                    name="unified-network"
-                    value="alfajores"
-                    checked={selectedNetwork === 'alfajores'}
-                    onChange={(e) => setSelectedNetwork(e.target.value as 'celo' | 'alfajores')}
-                    className="mr-4"
-                  />
-                  <Image src="/celo_testnet.webp" alt="Celo Testnet" width={32} height={32} className="h-8 w-8 mr-4 rounded-full" />
-                  <div className="flex-1">
-                    <div className="text-sm font-semibold text-gray-900">Celo Testnet</div>
-                    <div className="text-xs text-gray-600 font-mono overflow-hidden">
-                      <div className="break-all">
-                        <span className="sm:hidden">{truncateAddress(DEFAULT_HUB_ADDRESSES.alfajores, 6, 4)}</span>
-                        <span className="hidden sm:inline">{truncateAddress(DEFAULT_HUB_ADDRESSES.alfajores, 8, 6)}</span>
-                      </div>
-                    </div>
+                </div>
+              ) : (
+                <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4">
+                  <p className="text-green-700 text-sm flex items-center">
+                    <span className="text-green-500 mr-2">✅</span>
+                    <strong>Connected to {getCurrentNetwork()?.name}</strong>
+                  </p>
+                  <div className="mt-2 text-xs text-green-600 font-mono">
+                    Hub: {truncateAddress(getCurrentNetwork()?.hubAddress || '', 8, 6)}
                   </div>
-                  {selectedNetwork === 'alfajores' && (
-                    <span className="text-amber-500 text-lg">✓</span>
-                  )}
-                </label>
-              </div>
-              
-              <div className="bg-white border border-gray-200 rounded-lg p-3">
-                <p className="text-sm text-gray-700 flex items-center">
-                  <span className="text-green-500 mr-2">✅</span>
-                  <strong>Active Network:</strong> {selectedNetwork === 'celo' ? 'Celo Mainnet' : 'Celo Testnet (Alfajores)'}
-                </p>
-                <p className="text-xs text-gray-500 mt-1 ml-6">
-                  This selection applies to both Set and Read operations
-                </p>
-              </div>
+                </div>
+              )}
             </div>
 
           {/* Set Verification Config Section */}
@@ -1015,6 +1193,7 @@ export default function Home() {
                   setOlderThan('0');
                   setForbiddenCountriesEnabled(false);
                   setForbiddenCountriesPacked(['0', '0', '0', '0']);
+                  setSelectedCountries([]);
                   setOfacEnabled([false, false, false]);
                 }}
                 className="px-4 py-2 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
@@ -1053,55 +1232,81 @@ export default function Home() {
           <div className="space-y-4">
 
             {/* Age Verification */}
-            <div>
-              <label className="flex items-center mb-2">
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <label className="flex items-center mb-3">
                 <input
                   type="checkbox"
                   checked={olderThanEnabled}
                   onChange={(e) => setOlderThanEnabled(e.target.checked)}
-                  className="mr-2"
+                  className="mr-3 h-4 w-4"
                 />
                 <span className="text-sm font-medium text-black">Enable Age Verification</span>
               </label>
               {olderThanEnabled && (
-                <input
-                  type="number"
-                  value={olderThan}
-                  onChange={(e) => setOlderThan(e.target.value)}
-                  placeholder="18"
-                  min="0"
-                  className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-                />
+                <div className="mt-4">
+                  <label className="block mb-2 text-sm font-medium text-gray-700">
+                    Minimum Age: {olderThan || '0'}
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="99"
+                    value={olderThan}
+                    onChange={handleAgeChange}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>0</span>
+                    <span>50</span>
+                    <span>99</span>
+                  </div>
+                  <div className="text-sm text-gray-600 mt-2">
+                    Set to 0 to disable age requirement
+                  </div>
+                </div>
               )}
             </div>
 
             {/* Forbidden Countries */}
-            <div>
-              <label className="flex items-center mb-2">
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <label className="flex items-center mb-3">
                 <input
                   type="checkbox"
                   checked={forbiddenCountriesEnabled}
                   onChange={(e) => setForbiddenCountriesEnabled(e.target.checked)}
-                  className="mr-2"
+                  className="mr-3 h-4 w-4"
                 />
                 <span className="text-sm font-medium text-black">Enable Forbidden Countries</span>
               </label>
               {forbiddenCountriesEnabled && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {forbiddenCountriesPacked.map((value, index) => (
-                    <input
-                      key={index}
-                      type="text"
-                      value={value}
-                      onChange={(e) => {
-                        const newPacked = [...forbiddenCountriesPacked] as [string, string, string, string];
-                        newPacked[index] = e.target.value;
-                        setForbiddenCountriesPacked(newPacked);
-                      }}
-                      placeholder={`Packed ${index + 1}`}
-                      className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-black"
-                    />
-                  ))}
+                <div className="mt-4 space-y-3">
+                  <button
+                    onClick={() => setShowCountryModal(true)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                  >
+                    Configure Excluded Countries
+                  </button>
+                  <div className="text-sm text-gray-700">
+                    {selectedCountries.length > 0 
+                      ? `${selectedCountries.length} countries excluded` 
+                      : "No countries excluded"}
+                  </div>
+                  {selectedCountries.length > 0 && (
+                    <div className="max-h-20 overflow-y-auto">
+                      <div className="flex flex-wrap gap-1">
+                        {selectedCountries.slice(0, 10).map((code) => (
+                          <span key={code} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
+                            {countryCodes[code as keyof typeof countryCodes] || code}
+                          </span>
+                        ))}
+                        {selectedCountries.length > 10 && (
+                          <span className="inline-block bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded">
+                            +{selectedCountries.length - 10} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1138,12 +1343,14 @@ export default function Home() {
                 {isConfigDeploying ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-2 border-black border-t-transparent mr-2 inline-block"></div>
-                    Deploying Config...
+                    {transactionStatus === 'pending' ? 'Confirming Transaction...' : 'Deploying Config...'}
                   </>
-                ) : isConnected ? (
-                  'Set Verification Config'
-                ) : (
+                ) : !isConnected ? (
                   'Connect Wallet First'
+                ) : !isNetworkSupported() ? (
+                  'Switch Network First'
+                ) : (
+                  'Set Verification Config'
                 )}
               </button>
             </div>
@@ -1157,6 +1364,111 @@ export default function Home() {
             {configSuccess && (
               <div className="p-3 bg-green-50 border border-green-200 rounded text-green-700">
                 {configSuccess}
+              </div>
+            )}
+
+            {/* Transaction Status */}
+            {transactionHash && (
+              <div className={`p-4 border rounded-lg ${
+                transactionStatus === 'pending' ? 'bg-yellow-50 border-yellow-200' :
+                transactionStatus === 'confirmed' ? 'bg-green-50 border-green-200' :
+                transactionStatus === 'failed' ? 'bg-red-50 border-red-200' :
+                'bg-blue-50 border-blue-200'
+              }`}>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className={`font-semibold ${
+                    transactionStatus === 'pending' ? 'text-yellow-800' :
+                    transactionStatus === 'confirmed' ? 'text-green-800' :
+                    transactionStatus === 'failed' ? 'text-red-800' :
+                    'text-blue-800'
+                  }`}>
+                    {transactionStatus === 'pending' ? '🕐 Transaction Pending' :
+                     transactionStatus === 'confirmed' ? '✅ Transaction Confirmed' :
+                     transactionStatus === 'failed' ? '❌ Transaction Failed' :
+                     'Transaction'}
+                  </h3>
+                  <button
+                    onClick={() => {
+                      setTransactionHash('');
+                      setTransactionStatus('idle');
+                    }}
+                    className={`text-sm hover:opacity-75 ${
+                      transactionStatus === 'pending' ? 'text-yellow-600' :
+                      transactionStatus === 'confirmed' ? 'text-green-600' :
+                      transactionStatus === 'failed' ? 'text-red-600' :
+                      'text-blue-600'
+                    }`}
+                  >
+                    ✕ Close
+                  </button>
+                </div>
+                
+                <div className="space-y-3">
+                  {/* Transaction Hash */}
+                  <div>
+                    <p className={`text-xs font-medium mb-1 ${
+                      transactionStatus === 'pending' ? 'text-yellow-700' :
+                      transactionStatus === 'confirmed' ? 'text-green-700' :
+                      transactionStatus === 'failed' ? 'text-red-700' :
+                      'text-blue-700'
+                    }`}>
+                      Transaction Hash:
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <div className={`text-sm font-mono px-2 py-1 rounded flex-1 mr-3 overflow-hidden ${
+                        transactionStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        transactionStatus === 'confirmed' ? 'bg-green-100 text-green-800' :
+                        transactionStatus === 'failed' ? 'bg-red-100 text-red-800' :
+                        'bg-blue-100 text-blue-800'
+                      }`}>
+                        <div className="break-all">
+                          <span className="sm:hidden">{truncateAddress(transactionHash, 8, 8)}</span>
+                          <span className="hidden sm:inline">{truncateAddress(transactionHash, 12, 12)}</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(transactionHash)}
+                        className={`px-3 py-1 text-xs rounded transition-colors shrink-0 ${
+                          transactionStatus === 'pending' ? 'bg-yellow-600 text-white hover:bg-yellow-700' :
+                          transactionStatus === 'confirmed' ? 'bg-green-600 text-white hover:bg-green-700' :
+                          transactionStatus === 'failed' ? 'bg-red-600 text-white hover:bg-red-700' :
+                          'bg-blue-600 text-white hover:bg-blue-700'
+                        }`}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Celoscan Link */}
+                  {getCeloscanUrl(transactionHash) && (
+                    <div>
+                      <a
+                        href={getCeloscanUrl(transactionHash)!}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                          transactionStatus === 'pending' ? 'bg-yellow-600 text-white hover:bg-yellow-700' :
+                          transactionStatus === 'confirmed' ? 'bg-green-600 text-white hover:bg-green-700' :
+                          transactionStatus === 'failed' ? 'bg-red-600 text-white hover:bg-red-700' :
+                          'bg-blue-600 text-white hover:bg-blue-700'
+                        }`}
+                      >
+                        <span className="mr-2">🔗</span>
+                        View on Celoscan
+                        <span className="ml-2">↗</span>
+                      </a>
+                    </div>
+                  )}
+
+                  {/* Status Message */}
+                  {transactionStatus === 'pending' && (
+                    <div className="flex items-center text-yellow-700 text-sm">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-yellow-600 border-t-transparent mr-2"></div>
+                      Waiting for network confirmation...
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -1378,6 +1690,96 @@ export default function Home() {
         </a>
       </div>
 
+      {/* Country Selection Modal */}
+      {showCountryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-bold text-black">Select Countries to Exclude</h3>
+                <button
+                  onClick={() => setShowCountryModal(false)}
+                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+                >
+                  ×
+                </button>
+              </div>
+              
+              {countrySelectionError && (
+                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-700 text-sm">{countrySelectionError}</p>
+                </div>
+              )}
+              
+              <div className="mt-4">
+                <input
+                  type="text"
+                  placeholder="Search countries..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg bg-white text-black focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+            </div>
+            
+            <div className="p-6 max-h-96 overflow-y-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                {Object.entries(countryCodes)
+                  .filter(([, countryName]) =>
+                    countryName.toLowerCase().includes(searchQuery.toLowerCase())
+                  )
+                  .map(([code, countryName]) => (
+                    <label 
+                      key={code} 
+                      className="flex items-center space-x-3 p-3 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedCountries.includes(code)}
+                        onChange={() => handleCountryToggle(code)}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <span className="text-sm text-gray-900 flex-1">{countryName}</span>
+                      <span className="text-xs text-gray-500 font-mono">{code}</span>
+                    </label>
+                  ))}
+              </div>
+            </div>
+            
+            <div className="p-6 border-t border-gray-200 bg-gray-50">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-gray-600">
+                  {selectedCountries.length} of {MAX_FORBIDDEN_COUNTRIES_LIST_LENGTH} countries selected
+                </div>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => {
+                      setSelectedCountries([]);
+                      setCountrySelectionError(null);
+                    }}
+                    className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    Clear All
+                  </button>
+                  <button
+                    onClick={() => setShowCountryModal(false)}
+                    className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveCountrySelection}
+                    className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  >
+                    Apply Selection
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       <footer className="bg-black text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -1428,6 +1830,57 @@ export default function Home() {
           </div>
         </div>
       </footer>
+
+      {/* Global Styles */}
+      <style jsx global>{`
+        @keyframes particleFloat {
+          0% {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.3);
+          }
+          15% {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1.2);
+          }
+          100% {
+            opacity: 0;
+            transform: translate(calc(-50% + var(--particle-vx)), calc(-50% + var(--particle-vy))) scale(0.6);
+          }
+        }
+
+        .slider::-webkit-slider-thumb {
+          appearance: none;
+          height: 20px;
+          width: 20px;
+          border-radius: 50%;
+          background: #3b82f6;
+          cursor: pointer;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .slider::-moz-range-thumb {
+          height: 20px;
+          width: 20px;
+          border-radius: 50%;
+          background: #3b82f6;
+          cursor: pointer;
+          border: none;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .slider::-webkit-slider-track {
+          height: 8px;
+          background: linear-gradient(to right, #e5e7eb 0%, #3b82f6 100%);
+          border-radius: 4px;
+        }
+
+        .slider::-moz-range-track {
+          height: 8px;
+          background: linear-gradient(to right, #e5e7eb 0%, #3b82f6 100%);
+          border-radius: 4px;
+          border: none;
+        }
+      `}</style>
     </div>
   );
 }
