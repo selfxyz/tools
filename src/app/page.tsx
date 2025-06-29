@@ -23,7 +23,7 @@ interface VerificationConfigV2 {
 }
 
 // Country formatting function
-export function formatCountriesList(countries: string[]) {
+function formatCountriesList(countries: string[]) {
   // Check maximum list length
   if (countries.length > MAX_FORBIDDEN_COUNTRIES_LIST_LENGTH) {
     throw new Error(
