@@ -1080,7 +1080,7 @@ export default function Home() {
               {/* Pro Tip */}
               <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
                 <p className="text-xs text-blue-700">
-                  <span className="font-semibold">💡 Pro tip:</span> Start with Testnet to learn and experiment, then switch to Mainnet when you're ready to deploy for real users.
+                  <span className="font-semibold">💡 Pro tip:</span> Start with Testnet to learn and experiment, then switch to Mainnet when you&apos;re ready to deploy for real users.
                 </p>
               </div>
             </div>
@@ -1746,10 +1746,10 @@ export default function Home() {
                       </p>
                     </div>
                   ) : (
-                    <div className="bg-orange-50 border border-orange-200 rounded p-3 mb-3">
-                      <p className="text-orange-700 font-medium">⚠️ Verification Requirements Active</p>
-                      <p className="text-orange-600 text-sm mt-1">
-                        This configuration has active verification requirements as detailed below.
+                    <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-3">
+                      <p className="text-blue-700 font-medium">📋 Configuration Details</p>
+                      <p className="text-blue-600 text-sm mt-1">
+                        This configuration has specific verification settings. Review the details below to understand what&apos;s required.
                       </p>
                     </div>
                   )}
