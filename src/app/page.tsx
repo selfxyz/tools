@@ -720,7 +720,7 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
         {/* Hero Section */}
         <div className="relative text-center mb-8 sm:mb-12 py-4 overflow-hidden">
@@ -855,31 +855,45 @@ export default function Home() {
           {/* Step 1: Wallet Connection */}
           <div className="mb-6">
             <h3 className="text-sm font-semibold text-black mb-3">Step 1: Connect Your Wallet</h3>
-            {!isConnected ? (
-              /* Wallet Connection Step */
-              <div className="text-center bg-gray-50 rounded-lg p-4 sm:p-6 border-2 border-dashed border-gray-200">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-[#5BFFB6] to-[#4AE6A0] rounded-full flex items-center justify-center mx-auto mb-2 sm:mb-3">
-                  <span className="text-lg sm:text-xl">💼</span>
+            <div className={`rounded-lg p-4 border-2 ${
+              isConnected 
+                ? 'bg-green-50 border-green-200' 
+                : 'bg-gray-50 border-dashed border-gray-200'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 ${
+                    isConnected 
+                      ? 'bg-green-500' 
+                      : 'bg-gradient-to-br from-[#5BFFB6] to-[#4AE6A0]'
+                  }`}>
+                    <span className={`text-sm font-bold ${
+                      isConnected ? 'text-white' : 'text-black'
+                    }`}>
+                      {isConnected ? '✓' : '💼'}
+                    </span>
+                  </div>
+                  <div>
+                    <h4 className={`text-sm font-semibold ${
+                      isConnected ? 'text-green-800' : 'text-gray-700'
+                    }`}>
+                      {isConnected ? 'Wallet Connected' : 'Connect Your Wallet'}
+                    </h4>
+                    <p className={`text-xs ${
+                      isConnected ? 'text-green-700' : 'text-gray-600'
+                    }`}>
+                      {isConnected 
+                        ? (address ? truncateAddress(address) : 'Connected')
+                        : 'Connect your wallet to interact with Self contracts'
+                      }
+                    </p>
+                  </div>
                 </div>
-                <p className="text-gray-600 mb-3 sm:mb-4 text-xs sm:text-sm">Connect your wallet to interact with Self contracts</p>
-                <div className="flex justify-center">
+                <div className="flex-shrink-0">
                   <ConnectButton />
                 </div>
               </div>
-            ) : (
-              /* Connected Status */
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4">
-                <div className="flex items-center">
-                  <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center mr-3">
-                    <span className="text-white text-sm font-bold">✓</span>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-semibold text-green-800">Wallet Connected</h4>
-                    <p className="text-xs text-green-700">{address ? truncateAddress(address) : 'Connected'}</p>
-                  </div>
-                </div>
-              </div>
-            )}
+            </div>
           </div>
 
           {/* Current Network Status */}
@@ -1373,140 +1387,175 @@ export default function Home() {
                 <p className="text-xs text-blue-600">
                   <span className="font-semibold">Expected Config ID:</span>
                 </p>
-                <div className="text-xs text-blue-600 font-mono mt-1 overflow-hidden">
-                  <div className="break-all">
-                    <span className="sm:hidden">{truncateAddress('0x7b6436b0c98f62380866d9432c2af0ee08ce16a171bda6951aecd95ee1307d61', 8, 8)}</span>
-                    <span className="hidden sm:inline">{truncateAddress('0x7b6436b0c98f62380866d9432c2af0ee08ce16a171bda6951aecd95ee1307d61', 12, 12)}</span>
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="text-xs text-blue-600 font-mono overflow-hidden flex-1">
+                    <div className="break-all">
+                      <span className="sm:hidden">{truncateAddress('0x7b6436b0c98f62380866d9432c2af0ee08ce16a171bda6951aecd95ee1307d61', 8, 8)}</span>
+                      <span className="hidden sm:inline">{truncateAddress('0x7b6436b0c98f62380866d9432c2af0ee08ce16a171bda6951aecd95ee1307d61', 12, 12)}</span>
+                    </div>
                   </div>
+                  <button
+                    onClick={() => navigator.clipboard.writeText('0x7b6436b0c98f62380866d9432c2af0ee08ce16a171bda6951aecd95ee1307d61')}
+                    className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-200 transition-colors text-xs"
+                    title="Copy to clipboard"
+                  >
+                    Copy
+                  </button>
                 </div>
               </div>
             </div>
 
-          <div className="space-y-4">
-
-            {/* Age Verification */}
-            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-              <label className="flex items-center mb-3">
-                <input
-                  type="checkbox"
-                  checked={olderThanEnabled}
-                  onChange={(e) => setOlderThanEnabled(e.target.checked)}
-                  className="mr-3 h-4 w-4"
-                />
-                <span className="text-sm font-medium text-black">Enable Age Verification</span>
-              </label>
-              {olderThanEnabled && (
-                <div className="mt-4">
-                  <label className="block mb-2 text-sm font-medium text-gray-700">
-                    Minimum Age: {olderThan || '0'}
-                  </label>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left Column - Age Verification and Forbidden Countries */}
+            <div className="space-y-4">
+              {/* Age Verification */}
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <label className="flex items-center mb-3">
                   <input
-                    type="range"
-                    min="0"
-                    max="99"
-                    value={olderThan}
-                    onChange={handleAgeChange}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                    type="checkbox"
+                    checked={olderThanEnabled}
+                    onChange={(e) => setOlderThanEnabled(e.target.checked)}
+                    className="mr-3 h-4 w-4"
                   />
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>0</span>
-                    <span>50</span>
-                    <span>99</span>
-                  </div>
-                  <div className="text-sm text-gray-600 mt-2">
-                    Set to 0 to disable age requirement
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Forbidden Countries */}
-            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-              <label className="flex items-center mb-3">
-                <input
-                  type="checkbox"
-                  checked={forbiddenCountriesEnabled}
-                  onChange={(e) => setForbiddenCountriesEnabled(e.target.checked)}
-                  className="mr-3 h-4 w-4"
-                />
-                <span className="text-sm font-medium text-black">Enable Forbidden Countries</span>
-              </label>
-              {forbiddenCountriesEnabled && (
-                <div className="mt-4 space-y-3">
-                  <button
-                    onClick={() => setShowCountryModal(true)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                  >
-                    Configure Excluded Countries
-                  </button>
-                  <div className="text-sm text-gray-700">
-                    {selectedCountries.length > 0 
-                      ? `${selectedCountries.length} countries excluded` 
-                      : "No countries excluded"}
-                  </div>
-                  {selectedCountries.length > 0 && (
-                    <div className="max-h-20 overflow-y-auto">
-                      <div className="flex flex-wrap gap-1">
-                        {selectedCountries.slice(0, 10).map((code) => (
-                          <span key={code} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
-                            {countryCodes[code as keyof typeof countryCodes] || code}
-                          </span>
-                        ))}
-                        {selectedCountries.length > 10 && (
-                          <span className="inline-block bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded">
-                            +{selectedCountries.length - 10} more
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* OFAC Settings */}
-            <div>
-              <label className="block text-sm font-medium text-black mb-2">OFAC Settings</label>
-              <div className="flex gap-4">
-                {['OFAC 1', 'OFAC 2', 'OFAC 3'].map((label, index) => (
-                  <label key={index} className="flex items-center">
+                  <span className="text-sm font-medium text-black">Enable Age Verification</span>
+                </label>
+                {olderThanEnabled && (
+                  <div className="mt-4">
+                    <label className="block mb-2 text-sm font-medium text-gray-700">
+                      Minimum Age: {olderThan || '0'}
+                    </label>
                     <input
-                      type="checkbox"
-                      checked={ofacEnabled[index]}
-                      onChange={(e) => {
-                        const newOfac = [...ofacEnabled] as [boolean, boolean, boolean];
-                        newOfac[index] = e.target.checked;
-                        setOfacEnabled(newOfac);
-                      }}
-                      className="mr-2"
+                      type="range"
+                      min="0"
+                      max="99"
+                      value={olderThan}
+                      onChange={handleAgeChange}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
                     />
-                    <span className="text-sm text-black">{label}</span>
-                  </label>
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>0</span>
+                      <span>50</span>
+                      <span>99</span>
+                    </div>
+                    <div className="text-sm text-gray-600 mt-2">
+                      Set to 0 to disable age requirement
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Forbidden Countries */}
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <label className="flex items-center mb-3">
+                  <input
+                    type="checkbox"
+                    checked={forbiddenCountriesEnabled}
+                    onChange={(e) => setForbiddenCountriesEnabled(e.target.checked)}
+                    className="mr-3 h-4 w-4"
+                  />
+                  <span className="text-sm font-medium text-black">Enable Forbidden Countries</span>
+                </label>
+                {forbiddenCountriesEnabled && (
+                  <div className="mt-4 space-y-3">
+                    <button
+                      onClick={() => setShowCountryModal(true)}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                    >
+                      Configure Excluded Countries
+                    </button>
+                    <div className="text-sm text-gray-700">
+                      {selectedCountries.length > 0 
+                        ? `${selectedCountries.length} countries excluded` 
+                        : "No countries excluded"}
+                    </div>
+                    {selectedCountries.length > 0 && (
+                      <div className="max-h-20 overflow-y-auto">
+                        <div className="flex flex-wrap gap-1">
+                          {selectedCountries.slice(0, 10).map((code) => (
+                            <span key={code} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
+                              {countryCodes[code as keyof typeof countryCodes] || code}
+                            </span>
+                          ))}
+                          {selectedCountries.length > 10 && (
+                            <span className="inline-block bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded">
+                              +{selectedCountries.length - 10} more
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right Column - OFAC Settings */}
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <label className="block text-sm font-medium text-black mb-4">OFAC Compliance Settings</label>
+              <div className="space-y-4">
+                {[
+                  { 
+                    label: 'OFAC 1', 
+                    description: 'Basic OFAC screening against Specially Designated Nationals (SDN) list'
+                  },
+                  { 
+                    label: 'OFAC 2', 
+                    description: 'Enhanced screening including consolidated sanctions list'
+                  },
+                  { 
+                    label: 'OFAC 3', 
+                    description: 'Comprehensive screening with additional risk factors and enhanced due diligence'
+                  }
+                ].map((item, index) => (
+                  <div key={index} className="bg-white rounded-lg p-3 border border-gray-200">
+                    <label className="flex items-start">
+                      <input
+                        type="checkbox"
+                        checked={ofacEnabled[index]}
+                        onChange={(e) => {
+                          const newOfac = [...ofacEnabled] as [boolean, boolean, boolean];
+                          newOfac[index] = e.target.checked;
+                          setOfacEnabled(newOfac);
+                        }}
+                        className="mr-3 mt-0.5 h-4 w-4"
+                      />
+                      <div className="flex-1">
+                        <span className="text-sm font-medium text-black">{item.label}</span>
+                        <p className="text-xs text-gray-600 mt-1 leading-relaxed">{item.description}</p>
+                      </div>
+                    </label>
+                  </div>
                 ))}
               </div>
+              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-xs text-yellow-800">
+                  <strong>Note:</strong> OFAC (Office of Foreign Assets Control) compliance helps prevent transactions with sanctioned individuals and entities. Higher levels provide more comprehensive screening.
+                </p>
+              </div>
             </div>
+          </div>
 
-            {/* Deploy Button */}
-            <div className="pt-4">
-              <button
-                onClick={setVerificationConfig}
-                disabled={!isConnected || isConfigDeploying}
-                className="px-6 py-3 bg-gradient-to-r from-[#5BFFB6] to-[#4AE6A0] text-black rounded-xl hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed disabled:from-gray-400 disabled:to-gray-400 disabled:text-gray-600 transition-all font-semibold transform hover:scale-105 active:scale-95 hover:shadow-xl"
-              >
-                {isConfigDeploying ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-black border-t-transparent mr-2 inline-block"></div>
-                    {transactionStatus === 'pending' ? 'Confirming Transaction...' : 'Deploying Config...'}
-                  </>
-                ) : !isConnected ? (
-                  'Connect Wallet First'
-                ) : !isNetworkSupported() ? (
-                  'Switch Network First'
-                ) : (
-                  'Set Verification Config'
-                )}
-              </button>
-            </div>
+          {/* Deploy Button */}
+          <div className="pt-6">
+            <button
+              onClick={setVerificationConfig}
+              disabled={!isConnected || isConfigDeploying}
+              className="px-6 py-3 bg-gradient-to-r from-[#5BFFB6] to-[#4AE6A0] text-black rounded-xl hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed disabled:from-gray-400 disabled:to-gray-400 disabled:text-gray-600 transition-all font-semibold transform hover:scale-105 active:scale-95 hover:shadow-xl"
+            >
+              {isConfigDeploying ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-black border-t-transparent mr-2 inline-block"></div>
+                  {transactionStatus === 'pending' ? 'Confirming Transaction...' : 'Deploying Config...'}
+                </>
+              ) : !isConnected ? (
+                'Connect Wallet First'
+              ) : !isNetworkSupported() ? (
+                'Switch Network First'
+              ) : (
+                'Set Verification Config'
+              )}
+            </button>
+          </div>
 
             {/* Status Messages */}
             {configError && (
@@ -1698,11 +1747,19 @@ export default function Home() {
                     style={{ wordBreak: 'break-all', overflowWrap: 'break-word' }}
                   />
                   {readConfigId && (
-                    <div className="mt-1 text-xs text-gray-500 font-mono overflow-hidden">
-                      <div className="break-all">
-                        <span className="sm:hidden">{truncateAddress(readConfigId, 8, 8)}</span>
-                        <span className="hidden sm:inline">{truncateAddress(readConfigId, 12, 12)}</span>
+                    <div className="mt-2 flex items-center justify-between">
+                      <div className="text-xs text-gray-500 font-mono bg-gray-100 px-2 py-1 rounded flex-1 mr-3 overflow-hidden">
+                        <div className="break-all">
+                          <span className="sm:hidden">{truncateAddress(readConfigId, 8, 8)}</span>
+                          <span className="hidden sm:inline">{truncateAddress(readConfigId, 12, 12)}</span>
+                        </div>
                       </div>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(readConfigId)}
+                        className="px-3 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors shrink-0"
+                      >
+                        Copy
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1786,8 +1843,6 @@ export default function Home() {
           </div>
         </div>
       </div>
-        
-      </main>
 
       {/* Toast Notification */}
       {toast.show && (
