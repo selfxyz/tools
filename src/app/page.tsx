@@ -860,7 +860,7 @@ export default function Home() {
                 ? 'bg-green-50 border-green-200' 
                 : 'bg-gray-50 border-dashed border-gray-200'
             }`}>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex items-center">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 ${
                     isConnected 
@@ -879,7 +879,7 @@ export default function Home() {
                     }`}>
                       {isConnected ? 'Wallet Connected' : 'Connect Your Wallet'}
                     </h4>
-                    <p className={`text-xs ${
+                    <p className={`text-xs sm:text-sm ${
                       isConnected ? 'text-green-700' : 'text-gray-600'
                     }`}>
                       {isConnected 
@@ -889,7 +889,7 @@ export default function Home() {
                     </p>
                   </div>
                 </div>
-                <div className="flex-shrink-0">
+                <div className="w-full sm:w-auto sm:flex-shrink-0">
                   <ConnectButton />
                 </div>
               </div>
