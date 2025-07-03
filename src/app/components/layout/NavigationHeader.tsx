@@ -26,7 +26,7 @@ export default function NavigationHeader() {
               <span className="hidden lg:inline">Documentation</span>
             </a>
             <a
-              href="https://t.me/selfbuilder"
+              href="https://t.me/+d2TGsbkSDmgzODVi"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center px-3 sm:px-4 lg:px-6 py-1.5 sm:py-2 lg:py-2.5 bg-gradient-to-r from-[#5BFFB6] to-[#4AE6A0] text-black rounded-lg sm:rounded-xl hover:shadow-lg transition-all text-xs sm:text-sm font-semibold transform hover:scale-105 active:scale-95 hover:shadow-xl"

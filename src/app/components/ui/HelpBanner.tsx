@@ -15,7 +15,7 @@ export default function HelpBanner() {
             </p>
           </div>
           <a
-            href="https://t.me/selfbuilder"
+            href="https://t.me/+d2TGsbkSDmgzODVi"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-[#5BFFB6] to-[#4AE6A0] text-black rounded-xl hover:shadow-lg transition-all font-semibold text-sm sm:text-base transform hover:scale-105 active:scale-95 hover:shadow-xl group"

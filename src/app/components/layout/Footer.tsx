@@ -18,7 +18,7 @@ export default function Footer() {
                  className="text-gray-400 hover:text-[#5BFFB6] transition-colors">
                 <Image src="/github.png" alt="GitHub" width={20} height={20} className="h-5 w-5 rounded-full" />
               </a>
-              <a href="https://t.me/selfbuilder" target="_blank" rel="noopener noreferrer"
+              <a href="https://t.me/+d2TGsbkSDmgzODVi" target="_blank" rel="noopener noreferrer"
                  className="text-gray-400 hover:text-[#5BFFB6] transition-colors">
                 <Image src="/telegram.webp" alt="Telegram" width={20} height={20} className="h-5 w-5 rounded-full" />
               </a>
