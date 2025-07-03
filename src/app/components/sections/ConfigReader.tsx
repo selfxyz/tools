@@ -5,6 +5,7 @@ import { ethers } from 'ethers';
 import { useAccount } from 'wagmi';
 import { celo, celoAlfajores } from 'viem/chains';
 import { HUB_CONTRACT_ABI } from '../../../contracts/hubABI';
+import CopyButton from '../ui/CopyButton';
 
 interface VerificationConfigV2 {
   olderThanEnabled: boolean;
@@ -247,12 +248,14 @@ export default function ConfigReader() {
                     <span className="hidden sm:inline">{truncateAddress(readConfigId, 12, 12)}</span>
                   </div>
                 </div>
-                <button
-                  onClick={() => navigator.clipboard.writeText(readConfigId)}
-                  className="px-3 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors shrink-0"
+                <CopyButton 
+                  text={readConfigId}
+                  variant="neutral"
+                  size="sm"
+                  className="shrink-0"
                 >
                   Copy
-                </button>
+                </CopyButton>
               </div>
             )}
           </div>

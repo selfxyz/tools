@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { hashEndpointWithScope } from '@selfxyz/core';
+import CopyButton from '../ui/CopyButton';
 
 export default function ScopeGenerator() {
   const [address, setAddress] = useState('');
@@ -9,7 +10,7 @@ export default function ScopeGenerator() {
   const [addressError, setAddressError] = useState('');
   const [scopeError, setScopeError] = useState('');
   const [hashedEndpoint, setHashedEndpoint] = useState('');
-  const [copySuccess, setCopySuccess] = useState(false);
+
 
   // Ethereum address validation (0x followed by 40 hex characters)
   const validateEthereumAddress = (addr: string): boolean => {
@@ -90,15 +91,7 @@ export default function ScopeGenerator() {
     }
   };
 
-  const copyToClipboard = async () => {
-    try {
-      await navigator.clipboard.writeText(hashedEndpoint);
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000); // Reset after 2 seconds
-    } catch (err) {
-      console.error('Failed to copy: ', err);
-    }
-  };
+
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 shadow-lg mb-8 sm:mb-12 mx-2 sm:mx-0">
@@ -226,25 +219,14 @@ export default function ScopeGenerator() {
                   </span>
                   Generated Scope
                 </h3>
-                <button
-                  onClick={copyToClipboard}
-                  className={`flex items-center px-4 py-2 rounded-lg font-medium transition-all transform hover:scale-105 active:scale-95 ${copySuccess
-                    ? 'bg-green-500 text-white shadow-lg animate-pulse'
-                    : 'bg-white text-blue-700 border border-blue-300 hover:bg-blue-50 shadow-sm hover:shadow-md'
-                    }`}
+                <CopyButton 
+                  text={hashedEndpoint}
+                  variant="secondary"
+                  size="md"
+                  className="shadow-sm hover:shadow-md"
                 >
-                  {copySuccess ? (
-                    <>
-                      <span className="mr-2 animate-bounce">✓</span>
-                      Copied!
-                    </>
-                  ) : (
-                    <>
-                      <span className="mr-2">📋</span>
-                      Copy
-                    </>
-                  )}
-                </button>
+                  Copy
+                </CopyButton>
               </div>
 
               <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm overflow-hidden">

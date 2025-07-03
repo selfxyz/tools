@@ -125,8 +125,8 @@ export default function Home() {
           setSelectedCountries={setSelectedCountries}
           setShowCountryModal={setShowCountryModal}
         />
-      </div>
-      
+              </div>
+
       {/* Toast Notification */}
       <ToastNotification 
         toast={toast} 
@@ -141,9 +141,9 @@ export default function Home() {
         onCountryToggle={handleCountryToggle}
         onSave={saveCountrySelection}
         onClearAll={() => {
-          setSelectedCountries([]);
-          setCountrySelectionError(null);
-        }}
+                      setSelectedCountries([]);
+                      setCountrySelectionError(null);
+                    }}
         selectionError={countrySelectionError}
       />
 
@@ -152,57 +152,6 @@ export default function Home() {
 
       {/* Footer */}
       <Footer />
-      
-      {/* Global Styles */}
-      <style jsx global>{`
-        @keyframes particleFloat {
-          0% {
-            opacity: 0;
-            transform: translate(-50%, -50%) scale(0.3);
-          }
-          15% {
-            opacity: 1;
-            transform: translate(-50%, -50%) scale(1.2);
-          }
-          100% {
-            opacity: 0;
-            transform: translate(calc(-50% + var(--particle-vx)), calc(-50% + var(--particle-vy))) scale(0.6);
-          }
-        }
-
-        .slider::-webkit-slider-thumb {
-          appearance: none;
-          height: 20px;
-          width: 20px;
-          border-radius: 50%;
-          background: #3b82f6;
-          cursor: pointer;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-        }
-
-        .slider::-moz-range-thumb {
-          height: 20px;
-          width: 20px;
-          border-radius: 50%;
-          background: #3b82f6;
-          cursor: pointer;
-          border: none;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-        }
-
-        .slider::-webkit-slider-track {
-          height: 8px;
-          background: linear-gradient(to right, #e5e7eb 0%, #3b82f6 100%);
-          border-radius: 4px;
-        }
-
-        .slider::-moz-range-track {
-          height: 8px;
-          background: linear-gradient(to right, #e5e7eb 0%, #3b82f6 100%);
-          border-radius: 4px;
-          border: none;
-        }
-      `}</style>
-    </div>
+              </div>
   );
 } 

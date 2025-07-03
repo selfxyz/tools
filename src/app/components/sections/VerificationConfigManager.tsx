@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { useWalletClient, useAccount } from 'wagmi';
 import { celo, celoAlfajores } from 'viem/chains';
 import { HUB_CONTRACT_ABI } from '../../../contracts/hubABI';
 import { countryCodes } from '@selfxyz/core';
+import CopyButton from '../ui/CopyButton';
 
 interface VerificationConfigV2 {
   olderThanEnabled: boolean;
@@ -16,6 +17,7 @@ interface VerificationConfigV2 {
 }
 
 interface VerificationConfigManagerProps {
+  showToast: (message: string, type: 'success' | 'error' | 'info') => void;
   selectedCountries: string[];
   setSelectedCountries: (countries: string[]) => void;
   setShowCountryModal: (show: boolean) => void;
@@ -160,6 +162,32 @@ export default function VerificationConfigManager({
 
 
 
+  // Process countries when they change
+  useEffect(() => {
+    if (selectedCountries.length > 0) {
+      try {
+        const formattedList = formatCountriesList(selectedCountries);
+        
+        const packed: [string, string, string, string] = ['0', '0', '0', '0'];
+        
+        for (let i = 0; i < 4; i++) {
+          let value = BigInt(0);
+          for (let j = 0; j < 30 && (i * 30 + j) < formattedList.length; j++) {
+            value += BigInt(formattedList[i * 30 + j]) * (BigInt(256) ** BigInt(j));
+          }
+          packed[i] = value.toString();
+        }
+        
+        setForbiddenCountriesPacked(packed);
+        showToast(`Processed ${selectedCountries.length} countries for exclusion`, 'success');
+      } catch (error) {
+        showToast((error as Error).message, 'error');
+      }
+    } else {
+      // Reset to empty when no countries selected
+      setForbiddenCountriesPacked(['0', '0', '0', '0']);
+    }
+  }, [selectedCountries, showToast]);
 
   const setVerificationConfig = async () => {
     if (!walletClient) {
@@ -243,6 +271,7 @@ export default function VerificationConfigManager({
 
       setConfigError('Failed to set verification config: ' + errorMessage);
       setTransactionStatus('failed');
+      showToast('Failed to deploy verification config: ' + errorMessage, 'error');
     } finally {
       setIsConfigDeploying(false);
     }
@@ -298,13 +327,14 @@ export default function VerificationConfigManager({
                   <span className="hidden sm:inline">{truncateAddress('0x7b6436b0c98f62380866d9432c2af0ee08ce16a171bda6951aecd95ee1307d61', 12, 12)}</span>
                 </div>
               </div>
-              <button
-                onClick={() => navigator.clipboard.writeText('0x7b6436b0c98f62380866d9432c2af0ee08ce16a171bda6951aecd95ee1307d61')}
-                className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-200 transition-colors text-xs"
-                title="Copy to clipboard"
+              <CopyButton 
+                text="0x7b6436b0c98f62380866d9432c2af0ee08ce16a171bda6951aecd95ee1307d61"
+                variant="secondary"
+                size="sm"
+                className="p-1 text-xs"
               >
                 Copy
-              </button>
+              </CopyButton>
             </div>
           </div>
         </div>
@@ -531,17 +561,14 @@ export default function VerificationConfigManager({
                       <span className="hidden sm:inline">{truncateAddress(transactionHash, 12, 12)}</span>
                     </div>
                   </div>
-                  <button
-                    onClick={() => navigator.clipboard.writeText(transactionHash)}
-                    className={`px-3 py-1 text-xs rounded transition-colors shrink-0 ${
-                      transactionStatus === 'pending' ? 'bg-yellow-600 text-white hover:bg-yellow-700' :
-                      transactionStatus === 'confirmed' ? 'bg-green-600 text-white hover:bg-green-700' :
-                      transactionStatus === 'failed' ? 'bg-red-600 text-white hover:bg-red-700' :
-                      'bg-blue-600 text-white hover:bg-blue-700'
-                    }`}
+                  <CopyButton 
+                    text={transactionHash}
+                    variant={transactionStatus === 'confirmed' ? 'success' : 'primary'}
+                    size="sm"
+                    className="shrink-0"
                   >
                     Copy
-                  </button>
+                  </CopyButton>
                 </div>
               </div>
 
@@ -593,12 +620,14 @@ export default function VerificationConfigManager({
                   <span className="hidden sm:inline">{truncateAddress(generatedConfigId, 12, 12)}</span>
                 </div>
               </div>
-              <button
-                onClick={() => navigator.clipboard.writeText(generatedConfigId)}
-                className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors shrink-0"
+              <CopyButton 
+                text={generatedConfigId}
+                variant="primary"
+                size="sm"
+                className="shrink-0"
               >
                 Copy
-              </button>
+              </CopyButton>
             </div>
             <p className="text-xs text-blue-600 mt-2">
               Use this ID to read the configuration or reference it in other contracts

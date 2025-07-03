@@ -4,11 +4,11 @@ export default function HelpBanner() {
   return (
     <div className="max-w-5xl mx-auto mb-12 sm:mb-16 px-2 sm:px-0">
       <div className="bg-gradient-to-r from-[#5BFFB6]/10 via-blue-50 to-[#5BFFB6]/10 border border-[#5BFFB6]/30 rounded-xl p-4 sm:p-6">
-        <div className="flex flex-col sm:flex-row items-center text-center sm:text-left">
-          <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-[#5BFFB6] to-[#4AE6A0] rounded-xl flex items-center justify-center mb-4 sm:mb-0 sm:mr-6 animate-pulse">
+        <div className="flex flex-col sm:flex-row items-center text-center sm:text-left gap-6 sm:gap-8">
+          <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-[#5BFFB6] to-[#4AE6A0] rounded-xl flex items-center justify-center animate-pulse shrink-0">
             <span className="text-xl sm:text-2xl">🚀</span>
           </div>
-          <div className="flex-1 mb-4 sm:mb-0">
+          <div className="flex-1">
             <h3 className="text-lg sm:text-xl font-bold text-black mb-2">Need Help Building?</h3>
             <p className="text-gray-700 text-sm sm:text-base leading-relaxed">
               Join our active Telegram community for instant support, code examples, and direct access to the Self Protocol team!
