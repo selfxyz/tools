@@ -23,6 +23,7 @@ interface VerificationConfigManagerProps {
   setShowCountryModal: (show: boolean) => void;
 }
 
+// Constants
 const MAX_FORBIDDEN_COUNTRIES_LIST_LENGTH = 40;
 
 function formatCountriesList(countries: string[]) {
@@ -63,17 +64,17 @@ export default function VerificationConfigManager({
   const { isConnected, chain: currentChain } = useAccount();
 
   // Verification config state
-  const [olderThanEnabled, setOlderThanEnabled] = useState(false);
   const [olderThan, setOlderThan] = useState('0');
-  const [forbiddenCountriesEnabled, setForbiddenCountriesEnabled] = useState(false);
   const [forbiddenCountriesPacked, setForbiddenCountriesPacked] = useState<[string, string, string, string]>(['0', '0', '0', '0']);
   const [ofacEnabled, setOfacEnabled] = useState<[boolean, boolean, boolean]>([false, false, false]);
+  
+  // Deployment state
+  const [isConfigDeploying, setIsConfigDeploying] = useState(false);
   const [configError, setConfigError] = useState('');
   const [configSuccess, setConfigSuccess] = useState('');
   const [generatedConfigId, setGeneratedConfigId] = useState('');
   const [transactionHash, setTransactionHash] = useState('');
   const [transactionStatus, setTransactionStatus] = useState<'idle' | 'pending' | 'confirmed' | 'failed'>('idle');
-  const [isConfigDeploying, setIsConfigDeploying] = useState(false);
 
   // Network configuration
   const DEFAULT_HUB_ADDRESSES = {
@@ -160,8 +161,6 @@ export default function VerificationConfigManager({
     setOlderThan(newAge.toString());
   };
 
-
-
   // Process countries when they change
   useEffect(() => {
     if (selectedCountries.length > 0) {
@@ -187,7 +186,7 @@ export default function VerificationConfigManager({
       // Reset to empty when no countries selected
       setForbiddenCountriesPacked(['0', '0', '0', '0']);
     }
-  }, [selectedCountries, showToast]);
+  }, [selectedCountries]);
 
   const setVerificationConfig = async () => {
     if (!walletClient) {
@@ -214,9 +213,9 @@ export default function VerificationConfigManager({
       const contract = new ethers.Contract(currentNetwork.hubAddress, HUB_CONTRACT_ABI, signer);
 
       const config = {
-        olderThanEnabled: olderThanEnabled,
+        olderThanEnabled: parseInt(olderThan) > 0,
         olderThan: BigInt(olderThan),
-        forbiddenCountriesEnabled: forbiddenCountriesEnabled,
+        forbiddenCountriesEnabled: selectedCountries.length > 0,
         forbiddenCountriesListPacked: [
           BigInt(forbiddenCountriesPacked[0]),
           BigInt(forbiddenCountriesPacked[1]),
@@ -289,9 +288,7 @@ export default function VerificationConfigManager({
           </div>
           <button
             onClick={() => {
-              setOlderThanEnabled(false);
               setOlderThan('0');
-              setForbiddenCountriesEnabled(false);
               setForbiddenCountriesPacked(['0', '0', '0', '0']);
               setSelectedCountries([]);
               setOfacEnabled([false, false, false]);
@@ -344,82 +341,72 @@ export default function VerificationConfigManager({
           <div className="space-y-6">
             {/* Age Verification */}
             <div className="bg-white rounded-xl p-6 border-2 border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-              <label className="flex items-center mb-4">
+              <div className="mb-4">
+                <h4 className="text-sm sm:text-base font-semibold text-black mb-2">Age Verification</h4>
+                <p className="text-xs sm:text-sm text-gray-600">
+                  Set minimum age requirement. Leave at 0 to disable age verification.
+                </p>
+              </div>
+              <div className="mt-4">
+                <label className="block mb-2 text-sm font-medium text-gray-700">
+                  Minimum Age: {olderThan || '0'} {parseInt(olderThan) > 0 ? '(Enabled)' : '(Disabled)'}
+                </label>
                 <input
-                  type="checkbox"
-                  checked={olderThanEnabled}
-                  onChange={(e) => setOlderThanEnabled(e.target.checked)}
-                  className="mr-4 h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  type="range"
+                  min="0"
+                  max="99"
+                  value={olderThan}
+                  onChange={handleAgeChange}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
                 />
-                <span className="text-sm sm:text-base font-semibold text-black">Enable Age Verification</span>
-              </label>
-              {olderThanEnabled && (
-                <div className="mt-4">
-                  <label className="block mb-2 text-sm font-medium text-gray-700">
-                    Minimum Age: {olderThan || '0'}
-                  </label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="99"
-                    value={olderThan}
-                    onChange={handleAgeChange}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-                  />
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>0</span>
-                    <span>50</span>
-                    <span>99</span>
-                  </div>
-                  <div className="text-sm text-gray-600 mt-2">
-                    Set to 0 to disable age requirement
-                  </div>
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>0 (Disabled)</span>
+                  <span>50</span>
+                  <span>99</span>
                 </div>
-              )}
+                <div className="text-sm text-gray-600 mt-2">
+                  Move slider to set minimum age requirement
+                </div>
+              </div>
             </div>
 
             {/* Forbidden Countries */}
             <div className="bg-white rounded-xl p-6 border-2 border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-              <label className="flex items-center mb-4">
-                <input
-                  type="checkbox"
-                  checked={forbiddenCountriesEnabled}
-                  onChange={(e) => setForbiddenCountriesEnabled(e.target.checked)}
-                  className="mr-4 h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm sm:text-base font-semibold text-black">Enable Forbidden Countries</span>
-              </label>
-              {forbiddenCountriesEnabled && (
-                <div className="mt-6 space-y-4">
-                  <button
-                    onClick={() => setShowCountryModal(true)}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all text-sm sm:text-base font-semibold transform hover:scale-105 active:scale-95 shadow-md hover:shadow-lg"
-                  >
-                    Configure Excluded Countries
-                  </button>
-                  <div className="text-sm sm:text-base text-gray-700 font-medium">
-                    {selectedCountries.length > 0 
-                      ? `${selectedCountries.length} countries excluded` 
-                      : "No countries excluded"}
-                  </div>
-                  {selectedCountries.length > 0 && (
-                    <div className="max-h-24 overflow-y-auto bg-gray-50 rounded-lg p-3">
-                      <div className="flex flex-wrap gap-2">
-                        {selectedCountries.slice(0, 10).map((code) => (
-                          <span key={code} className="inline-block bg-blue-100 text-blue-800 text-xs sm:text-sm px-3 py-1.5 rounded-lg font-medium">
-                            {countryCodes[code as keyof typeof countryCodes] || code}
-                          </span>
-                        ))}
-                        {selectedCountries.length > 10 && (
-                          <span className="inline-block bg-gray-100 text-gray-600 text-xs sm:text-sm px-3 py-1.5 rounded-lg font-medium">
-                            +{selectedCountries.length - 10} more
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
+              <div className="mb-4">
+                <h4 className="text-sm sm:text-base font-semibold text-black mb-2">Country Restrictions</h4>
+                <p className="text-xs sm:text-sm text-gray-600">
+                  Select countries to exclude from verification. Leave empty to allow all countries.
+                </p>
+              </div>
+              <div className="mt-6 space-y-4">
+                <button
+                  onClick={() => setShowCountryModal(true)}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all text-sm sm:text-base font-semibold transform hover:scale-105 active:scale-95 shadow-md hover:shadow-lg"
+                >
+                  Select Countries to Exclude
+                </button>
+                <div className="text-sm sm:text-base text-gray-700 font-medium">
+                  {selectedCountries.length > 0 
+                    ? `${selectedCountries.length} countries excluded (Enabled)` 
+                    : "No countries excluded (Disabled)"}
                 </div>
-              )}
+                {selectedCountries.length > 0 && (
+                  <div className="max-h-24 overflow-y-auto bg-gray-50 rounded-lg p-3">
+                    <div className="flex flex-wrap gap-2">
+                      {selectedCountries.slice(0, 10).map((code) => (
+                        <span key={code} className="inline-block bg-blue-100 text-blue-800 text-xs sm:text-sm px-3 py-1.5 rounded-lg font-medium">
+                          {countryCodes[code as keyof typeof countryCodes] || code}
+                        </span>
+                      ))}
+                      {selectedCountries.length > 10 && (
+                        <span className="inline-block bg-gray-100 text-gray-600 text-xs sm:text-sm px-3 py-1.5 rounded-lg font-medium">
+                          +{selectedCountries.length - 10} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
