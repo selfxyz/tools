@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
-import { useWalletClient, useAccount } from 'wagmi';
-import { celo, celoAlfajores } from 'viem/chains';
+import { TransactionService } from '@/utils/transactionService';
 import { HUB_CONTRACT_ABI } from '../../../contracts/hubABI';
 import { countryCodes } from '@selfxyz/core';
 import CopyButton from '../ui/CopyButton';
@@ -21,6 +20,7 @@ interface VerificationConfigManagerProps {
   selectedCountries: string[];
   setSelectedCountries: (countries: string[]) => void;
   setShowCountryModal: (show: boolean) => void;
+  selectedNetwork: 'celo' | 'alfajores';
 }
 
 // Constants
@@ -58,10 +58,11 @@ export default function VerificationConfigManager({
   showToast, 
   selectedCountries, 
   setSelectedCountries, 
-  setShowCountryModal 
+  setShowCountryModal,
+  selectedNetwork
 }: VerificationConfigManagerProps) {
-  const { data: walletClient } = useWalletClient();
-  const { isConnected, chain: currentChain } = useAccount();
+  // Server wallet status
+  const [serverWalletConfigured, setServerWalletConfigured] = useState(false);
 
   // Verification config state
   const [olderThan, setOlderThan] = useState('0');
@@ -72,6 +73,7 @@ export default function VerificationConfigManager({
   const [isConfigDeploying, setIsConfigDeploying] = useState(false);
   const [configError, setConfigError] = useState('');
   const [configSuccess, setConfigSuccess] = useState('');
+  const [configProgress, setConfigProgress] = useState('');
   const [generatedConfigId, setGeneratedConfigId] = useState('');
   const [transactionHash, setTransactionHash] = useState('');
   const [transactionStatus, setTransactionStatus] = useState<'idle' | 'pending' | 'confirmed' | 'failed'>('idle');
@@ -88,40 +90,25 @@ export default function VerificationConfigManager({
   };
 
   const getCurrentNetwork = () => {
-    if (!currentChain) return null;
-    
-    if (currentChain.id === celo.id) {
+    if (selectedNetwork === 'celo') {
       return {
         key: 'celo' as const,
         name: 'Celo Mainnet',
         hubAddress: DEFAULT_HUB_ADDRESSES.celo,
-        rpcUrl: RPC_URLS.celo,
-        chain: celo
+        rpcUrl: RPC_URLS.celo
       };
-    } else if (currentChain.id === celoAlfajores.id) {
+    } else {
       return {
         key: 'alfajores' as const,
         name: 'Celo Testnet (Alfajores)',
         hubAddress: DEFAULT_HUB_ADDRESSES.alfajores,
-        rpcUrl: RPC_URLS.alfajores,
-        chain: celoAlfajores
+        rpcUrl: RPC_URLS.alfajores
       };
     }
-    
-    return null;
   };
 
-  const isNetworkSupported = () => getCurrentNetwork() !== null;
-
   const getCeloscanUrl = (txHash: string) => {
-    const network = getCurrentNetwork();
-    if (!network) return null;
-    
-    const baseUrl = network.key === 'celo' 
-      ? 'https://celoscan.io/tx/' 
-      : 'https://alfajores.celoscan.io/tx/';
-    
-    return baseUrl + txHash;
+    return TransactionService.getExplorerUrl(txHash, selectedNetwork);
   };
 
   const truncateAddress = (address: string, startChars = 6, endChars = 4) => {
@@ -132,10 +119,6 @@ export default function VerificationConfigManager({
   const generateConfigIdFromContract = async (config: VerificationConfigV2) => {
     try {
       const currentNetwork = getCurrentNetwork();
-      if (!currentNetwork) {
-        throw new Error('No supported network detected');
-      }
-
       const readProvider = new ethers.JsonRpcProvider(currentNetwork.rpcUrl);
       const contract = new ethers.Contract(currentNetwork.hubAddress, HUB_CONTRACT_ABI, readProvider);
 
@@ -160,6 +143,15 @@ export default function VerificationConfigManager({
     const newAge = parseInt(e.target.value);
     setOlderThan(newAge.toString());
   };
+
+  // Check server wallet status on mount
+  useEffect(() => {
+    const checkServerWallet = async () => {
+      const status = await TransactionService.getWalletStatus();
+      setServerWalletConfigured(status.configured);
+    };
+    checkServerWallet();
+  }, []);
 
   // Process countries when they change
   useEffect(() => {
@@ -186,11 +178,13 @@ export default function VerificationConfigManager({
       // Reset to empty when no countries selected
       setForbiddenCountriesPacked(['0', '0', '0', '0']);
     }
-  }, [selectedCountries]);
+  }, [selectedCountries, showToast]);
 
   const setVerificationConfig = async () => {
-    if (!walletClient) {
-      setConfigError('Please connect wallet first');
+    // For testnet: Check server wallet, for mainnet: We'll use user's wallet
+    if (selectedNetwork === 'alfajores' && !serverWalletConfigured) {
+      setConfigError('Server wallet not configured. Please set PRIVATE_KEY in environment variables.');
+      showToast('Server wallet not configured', 'error');
       return;
     }
 
@@ -198,79 +192,247 @@ export default function VerificationConfigManager({
     try {
       setConfigError('');
       setConfigSuccess('');
+      setConfigProgress('');
       setGeneratedConfigId('');
       setTransactionHash('');
       setTransactionStatus('idle');
 
-      const provider = new ethers.BrowserProvider(walletClient.transport);
-      const signer = await provider.getSigner();
-
-      const currentNetwork = getCurrentNetwork();
-      if (!currentNetwork) {
-        throw new Error(`Unsupported network. Please switch to Celo Mainnet or Testnet in your wallet.`);
-      }
-
-      const contract = new ethers.Contract(currentNetwork.hubAddress, HUB_CONTRACT_ABI, signer);
-
       const config = {
         olderThanEnabled: parseInt(olderThan) > 0,
-        olderThan: BigInt(olderThan),
+        olderThan: olderThan,
         forbiddenCountriesEnabled: selectedCountries.length > 0,
         forbiddenCountriesListPacked: [
-          BigInt(forbiddenCountriesPacked[0]),
-          BigInt(forbiddenCountriesPacked[1]),
-          BigInt(forbiddenCountriesPacked[2]),
-          BigInt(forbiddenCountriesPacked[3])
-        ] as [bigint, bigint, bigint, bigint],
+          forbiddenCountriesPacked[0],
+          forbiddenCountriesPacked[1],
+          forbiddenCountriesPacked[2],
+          forbiddenCountriesPacked[3]
+        ],
         ofacEnabled: ofacEnabled
       };
 
-      const localConfigId = await generateConfigIdFromContract(config);
+      // Check if config already exists (convert to BigInt for contract call)
+      const configForContractCheck = {
+        olderThanEnabled: config.olderThanEnabled,
+        olderThan: BigInt(config.olderThan),
+        forbiddenCountriesEnabled: config.forbiddenCountriesEnabled,
+        forbiddenCountriesListPacked: [
+          BigInt(config.forbiddenCountriesListPacked[0]),
+          BigInt(config.forbiddenCountriesListPacked[1]),
+          BigInt(config.forbiddenCountriesListPacked[2]),
+          BigInt(config.forbiddenCountriesListPacked[3])
+        ] as [bigint, bigint, bigint, bigint],
+        ofacEnabled: config.ofacEnabled
+      };
+      const localConfigId = await generateConfigIdFromContract(configForContractCheck);
+      const currentNetwork = getCurrentNetwork();
+      const readProvider = new ethers.JsonRpcProvider(currentNetwork.rpcUrl);
+      const contract = new ethers.Contract(currentNetwork.hubAddress, HUB_CONTRACT_ABI, readProvider);
       const configExists = await contract.verificationConfigV2Exists(localConfigId);
 
       if (configExists) {
         setGeneratedConfigId(localConfigId);
         setTransactionStatus('idle');
         setConfigSuccess('✅ Configuration already exists on-chain! No transaction needed (gas saved).');
-        setTimeout(() => setConfigSuccess(''), 7000);
         return;
       }
 
-      const tx = await contract.setVerificationConfigV2(config);
-      setTransactionHash(tx.hash);
-      setTransactionStatus('pending');
-      setConfigSuccess('🕐 Transaction sent! Waiting for confirmation...');
-      
-      const receipt = await tx.wait();
-      console.log('Transaction confirmed:', receipt);
+      if (selectedNetwork === 'alfajores') {
+        // Testnet: Use server relayer
+        setTransactionStatus('pending');
+        setConfigProgress('🕐 Sending transaction via server relayer...');
 
-      setTransactionStatus('confirmed');
-      setGeneratedConfigId(localConfigId);
-      setConfigSuccess('✅ Verification config deployed successfully!');
-      setTimeout(() => {
-        setConfigSuccess('');
-        setTransactionHash('');
-        setTransactionStatus('idle');
-      }, 10000);
+        const result = await TransactionService.executeTransaction({
+          functionName: 'setVerificationConfigV2',
+          args: [config],
+          network: selectedNetwork
+        });
+
+        if (result.success) {
+          setTransactionHash(result.hash || '');
+          setTransactionStatus('confirmed');
+          setGeneratedConfigId(localConfigId);
+          setConfigProgress('');
+          setConfigSuccess('✅ Verification config deployed successfully via server!');
+          showToast(`✅ Config set! Tx: ${result.hash?.slice(0, 10)}...`, 'success');
+        } else {
+          throw new Error(result.error || 'Transaction failed');
+        }
+      } else {
+        // Mainnet: Use user's wallet
+        setTransactionStatus('pending');
+        setConfigProgress('🔐 Please connect your wallet and confirm the transaction...');
+
+        // Check if MetaMask or similar wallet is available
+        if (!window.ethereum) {
+          throw new Error('No crypto wallet found. Please install MetaMask or another Ethereum wallet.');
+        }
+
+        // Request account access
+        await window.ethereum.request({ method: 'eth_requestAccounts' });
+        
+        // Create ethers provider from browser wallet
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+
+        // Check if user is on the correct network
+        const network = await provider.getNetwork();
+        const celoChainId = 42220; // Celo mainnet chain ID
+        
+        if (Number(network.chainId) !== celoChainId) {
+          // Try to switch to Celo network
+          try {
+            await window.ethereum.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: `0x${celoChainId.toString(16)}` }],
+            });
+          } catch (switchError: unknown) {
+            // If the chain is not added, add it
+            if ((switchError as { code?: number }).code === 4902) {
+              await window.ethereum.request({
+                method: 'wallet_addEthereumChain',
+                params: [{
+                  chainId: `0x${celoChainId.toString(16)}`,
+                  chainName: 'Celo Mainnet',
+                  rpcUrls: ['https://forno.celo.org'],
+                  blockExplorerUrls: ['https://celoscan.io'],
+                  nativeCurrency: {
+                    name: 'CELO',
+                    symbol: 'CELO',
+                    decimals: 18,
+                  },
+                }],
+              });
+            } else {
+              throw switchError;
+            }
+          }
+        }
+
+        // Create contract instance with signer
+        const contractWithSigner = new ethers.Contract(currentNetwork.hubAddress, HUB_CONTRACT_ABI, signer);
+
+        // Build transaction config
+        const configForContract = {
+          olderThanEnabled: config.olderThanEnabled,
+          olderThan: BigInt(config.olderThan),
+          forbiddenCountriesEnabled: config.forbiddenCountriesEnabled,
+          forbiddenCountriesListPacked: [
+            BigInt(config.forbiddenCountriesListPacked[0]),
+            BigInt(config.forbiddenCountriesListPacked[1]),
+            BigInt(config.forbiddenCountriesListPacked[2]),
+            BigInt(config.forbiddenCountriesListPacked[3])
+          ] as [bigint, bigint, bigint, bigint],
+          ofacEnabled: config.ofacEnabled
+        };
+
+        // Execute transaction
+        setConfigProgress('🔐 Transaction sent! Please wait for confirmation...');
+        const tx = await contractWithSigner.setVerificationConfigV2(configForContract);
+        setTransactionHash(tx.hash);
+
+        // Wait for confirmation
+        setConfigProgress('⏳ Waiting for transaction confirmation...');
+        const receipt = await tx.wait();
+
+        if (receipt && receipt.status === 1) {
+          setTransactionStatus('confirmed');
+          setGeneratedConfigId(localConfigId);
+          setConfigProgress('');
+          setConfigSuccess('✅ Verification config deployed successfully via your wallet!');
+          showToast(`✅ Config set! Tx: ${tx.hash.slice(0, 10)}...`, 'success');
+        } else {
+          throw new Error('Transaction failed or was reverted');
+        }
+      }
 
     } catch (error: unknown) {
       console.error('Error setting verification config:', error);
-      let errorMessage = (error as Error).message;
+      
+      // Parse error for better user experience
+      const parseError = (error: unknown): { message: string; isUserRejection: boolean } => {
+        if (error instanceof Error) {
+          const errorMessage = error.message.toLowerCase();
+          const errorString = error.toString().toLowerCase();
+          
+          // Check for user rejection patterns
+          if (errorString.includes('user rejected') || 
+              errorString.includes('user denied') || 
+              errorString.includes('action_rejected') ||
+              errorString.includes('code": 4001') ||
+              errorMessage.includes('user rejected the request')) {
+            return {
+              message: 'Transaction was cancelled by user',
+              isUserRejection: true
+            };
+          }
+          
+          // Check for network/connection errors
+          if (errorMessage.includes('network') || 
+              errorMessage.includes('connection') || 
+              errorMessage.includes('timeout')) {
+            return {
+              message: 'Network connection issue. Please check your internet connection and try again.',
+              isUserRejection: false
+            };
+          }
+          
+          // Check for insufficient funds
+          if (errorMessage.includes('insufficient funds') || 
+              errorMessage.includes('insufficient balance')) {
+            return {
+              message: 'Insufficient funds to pay for gas fees. Please add more CELO to your wallet.',
+              isUserRejection: false
+            };
+          }
+          
+          // Check for gas estimation errors
+          if (errorMessage.includes('gas') && errorMessage.includes('estimation')) {
+            return {
+              message: 'Transaction simulation failed. Please check your configuration and try again.',
+              isUserRejection: false
+            };
+          }
+          
+          // Check for wallet connection errors
+          if (errorMessage.includes('no crypto wallet') || 
+              errorMessage.includes('wallet not found') || 
+              errorMessage.includes('ethereum not found')) {
+            return {
+              message: 'Crypto wallet not detected. Please install MetaMask or another Ethereum wallet.',
+              isUserRejection: false
+            };
+          }
+          
+          // For long technical errors, provide a clean message
+          if (error.message.length > 200) {
+            return {
+              message: 'Transaction failed due to a technical error. Please try again or contact support.',
+              isUserRejection: false
+            };
+          }
+          
+          return {
+            message: error.message,
+            isUserRejection: false
+          };
+        }
+        
+        return {
+          message: 'An unexpected error occurred',
+          isUserRejection: false
+        };
+      };
 
-      if (errorMessage.includes('could not decode result data') && errorMessage.includes('value="0x"')) {
-        const network = getCurrentNetwork();
-        errorMessage = `Contract not found or invalid at address ${network?.hubAddress || 'unknown'} on ${network?.name || 'current'} network.`;
-      } else if (errorMessage.includes('CALL_EXCEPTION') || errorMessage.includes('execution reverted')) {
-        errorMessage = 'Transaction reverted. This is likely because you are not the contract owner.';
-      } else if (errorMessage.includes('insufficient funds')) {
-        errorMessage = 'Insufficient funds to pay for transaction.';
-      } else if (errorMessage.includes('rejected') || errorMessage.includes('denied')) {
-        errorMessage = 'Transaction was rejected by the user.';
-      }
-
-      setConfigError('Failed to set verification config: ' + errorMessage);
+      const { message, isUserRejection } = parseError(error);
+      
+      setConfigError(message);
       setTransactionStatus('failed');
-      showToast('Failed to deploy verification config: ' + errorMessage, 'error');
+      
+      if (isUserRejection) {
+        showToast('Transaction cancelled by user', 'info');
+      } else {
+        showToast(message, 'error');
+      }
     } finally {
       setIsConfigDeploying(false);
     }
@@ -278,7 +440,79 @@ export default function VerificationConfigManager({
 
   return (
     <div className="mb-12">
-      <div className="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-2xl p-6 sm:p-8 shadow-sm hover:shadow-md transition-shadow">
+              <div className="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-2xl p-6 sm:p-8 shadow-sm hover:shadow-md transition-shadow">
+        {/* Network-specific info banner */}
+        <div className={`mb-6 p-5 rounded-xl border-2 ${
+          selectedNetwork === 'alfajores' 
+            ? 'bg-blue-50 border-blue-200' 
+            : 'bg-purple-50 border-purple-200'
+        }`}>
+          <div className="flex items-start gap-4">
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${
+              selectedNetwork === 'alfajores' 
+                ? 'bg-blue-100' 
+                : 'bg-purple-100'
+            }`}>
+              {selectedNetwork === 'alfajores' ? '🧪' : '🏛️'}
+            </div>
+            <div className="flex-1">
+              <h4 className={`font-bold text-base sm:text-lg mb-3 ${
+                selectedNetwork === 'alfajores' ? 'text-blue-800' : 'text-purple-800'
+              }`}>
+                {selectedNetwork === 'alfajores' 
+                  ? 'Testnet Mode - Server Relayed (Free)' 
+                  : 'Mainnet Mode - Your Wallet Required'
+                }
+              </h4>
+              
+              {selectedNetwork === 'alfajores' ? (
+                <div className="space-y-3">
+                  <div className={`p-3 rounded-lg bg-blue-100 border border-blue-300`}>
+                    <p className="text-blue-800 text-sm font-medium mb-1">💡 What happens when you click deploy:</p>
+                    <ul className="text-blue-700 text-xs sm:text-sm space-y-1 ml-4">
+                      <li>• 🤖 Our server automatically signs the transaction</li>
+                      <li>• 💰 Server pays all gas fees (completely free for you)</li>
+                      <li>• ⚡ Transaction submits immediately - no wallet popups</li>
+                      <li>• 🧪 Perfect for testing and development</li>
+                    </ul>
+                  </div>
+                  <p className="text-blue-600 text-xs">
+                    <strong>Use Case:</strong> Test your verification configs without spending real money or setting up wallets.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className={`p-3 rounded-lg bg-purple-100 border border-purple-300`}>
+                    <p className="text-purple-800 text-sm font-medium mb-1">🔐 What happens when you click deploy:</p>
+                    <ul className="text-purple-700 text-xs sm:text-sm space-y-1 ml-4">
+                      <li>• 👤 You&apos;ll be prompted to connect your crypto wallet</li>
+                      <li>• 🌐 Wallet will switch to Celo Mainnet automatically</li>
+                      <li>• ✍️ You review and approve the transaction</li>
+                      <li>• 💰 You pay gas fees with real CELO tokens (~$0.01-0.05)</li>
+                      <li>• 🏛️ Transaction goes live on production network</li>
+                    </ul>
+                  </div>
+                  <p className="text-purple-600 text-xs">
+                    <strong>Use Case:</strong> Deploy production verification configs that real users will interact with.
+                  </p>
+                </div>
+              )}
+              
+              <div className={`mt-3 p-2 rounded-lg text-xs ${
+                selectedNetwork === 'alfajores' 
+                  ? 'bg-blue-200 text-blue-800' 
+                  : 'bg-purple-200 text-purple-800'
+              }`}>
+                <span className="font-medium">Supported Wallets:</span> {
+                  selectedNetwork === 'alfajores' 
+                    ? 'No wallet needed - server handles everything' 
+                    : 'MetaMask, Valora, WalletConnect, Coinbase Wallet'
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
           <div>
             <h3 className="text-xl sm:text-2xl font-semibold text-black mb-2">⚙️ Set Verification Config</h3>
@@ -460,33 +694,94 @@ export default function VerificationConfigManager({
         <div className="pt-8 mt-8 border-t-2 border-gray-200 text-center">
           <button
             onClick={setVerificationConfig}
-            disabled={!isConnected || isConfigDeploying}
+            disabled={(selectedNetwork === 'alfajores' && !serverWalletConfigured) || isConfigDeploying}
             className="w-full sm:w-auto px-10 py-4 bg-gradient-to-r from-[#5BFFB6] to-[#4AE6A0] text-black rounded-xl hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed disabled:from-gray-400 disabled:to-gray-400 disabled:text-gray-600 transition-all font-semibold text-base transform hover:scale-105 active:scale-95 hover:shadow-xl min-w-[250px]"
           >
             {isConfigDeploying ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-black border-t-transparent mr-2 inline-block"></div>
-                {transactionStatus === 'pending' ? 'Confirming Transaction...' : 'Deploying Config...'}
+                {transactionStatus === 'pending' ? 'Processing Transaction...' : 'Setting Config...'}
               </>
-            ) : !isConnected ? (
-              'Connect Wallet First'
-            ) : !isNetworkSupported() ? (
-              'Switch Network First'
+            ) : selectedNetwork === 'alfajores' ? (
+              !serverWalletConfigured ? 'Server Wallet Not Configured' : '🧪 Deploy via Server (Free)'
             ) : (
-              'Set Verification Config'
+              '🔐 Deploy via Your Wallet'
             )}
           </button>
+          
+          {selectedNetwork === 'alfajores' && !serverWalletConfigured && (
+            <p className="mt-4 text-sm text-red-600">
+              Configure PRIVATE_KEY in environment variables to enable server-relayed transactions
+            </p>
+          )}
+          
+          {selectedNetwork === 'celo' && (
+            <p className="mt-4 text-sm text-purple-600">
+              You&apos;ll need to connect your wallet and pay gas fees with CELO tokens
+            </p>
+          )}
         </div>
 
         {/* Status Messages */}
+        {configProgress && (
+          <div className="mt-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-xl">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"></div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="font-semibold text-blue-800 mb-1">Transaction in Progress</h4>
+                <p className="text-blue-700 text-sm break-words leading-relaxed">
+                  {configProgress}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
         {configError && (
-          <div className="mt-6 p-3 bg-red-50 border border-red-200 rounded text-red-700">
-            {configError}
+          <div className="mt-6 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center shrink-0">
+                <span className="text-red-600 text-lg">❌</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="font-semibold text-red-800 mb-1">Deployment Failed</h4>
+                <p className="text-red-700 text-sm break-words leading-relaxed">
+                  {configError}
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() => setConfigError('')}
+                    className="text-xs text-red-600 hover:text-red-800 underline"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
         {configSuccess && (
-          <div className="mt-6 p-3 bg-green-50 border border-green-200 rounded text-green-700">
-            {configSuccess}
+          <div className="mt-6 p-4 bg-green-50 border-2 border-green-200 rounded-xl">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center shrink-0">
+                <span className="text-green-600 text-lg">✅</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="font-semibold text-green-800 mb-1">Deployment Successful</h4>
+                <p className="text-green-700 text-sm break-words leading-relaxed">
+                  {configSuccess}
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() => setConfigSuccess('')}
+                    className="text-xs text-green-600 hover:text-green-800 underline"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

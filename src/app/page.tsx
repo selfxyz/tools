@@ -7,9 +7,10 @@ import NavigationHeader from './components/layout/NavigationHeader';
 import HeroSection from './components/ui/HeroSection';
 import HelpBanner from './components/ui/HelpBanner';
 import QuickStartCards from './components/ui/QuickStartCards';
-import WalletNetworkSetup from './components/sections/WalletNetworkSetup';
 import ScopeGenerator from './components/sections/ScopeGenerator';
-import HubContractOperations from './components/sections/HubContractOperations';
+import VerificationConfigManager from './components/sections/VerificationConfigManager';
+import NetworkSelector from './components/sections/NetworkSelector';
+import ConfigReader from './components/sections/ConfigReader';
 import ToastNotification from './components/ui/ToastNotification';
 import CountrySelectionModal from './components/ui/CountrySelectionModal';
 import MobileTelegramButton from './components/ui/MobileTelegramButton';
@@ -55,6 +56,9 @@ export default function Home() {
     show: boolean;
   }>({ message: '', type: 'info', show: false });
 
+  // Network selection state
+  const [selectedNetwork, setSelectedNetwork] = useState<'celo' | 'alfajores'>('alfajores');
+
   // Country selection state
   const [showCountryModal, setShowCountryModal] = useState(false);
   const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
@@ -63,9 +67,12 @@ export default function Home() {
   // Show toast notification
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setToast({ message, type, show: true });
-    setTimeout(() => {
-      setToast(prev => ({ ...prev, show: false }));
-    }, 5000);
+    // Only auto-hide error and info messages, keep success messages visible
+    if (type !== 'success') {
+      setTimeout(() => {
+        setToast(prev => ({ ...prev, show: false }));
+      }, 5000);
+    }
   };
 
   // Country selection handlers
@@ -112,19 +119,26 @@ export default function Home() {
         {/* Quick Start Cards */}
         <QuickStartCards />
 
-        {/* Wallet & Network Setup Section */}
-        <WalletNetworkSetup showToast={showToast} />
+        {/* Network & Server Status */}
+        <NetworkSelector 
+          selectedNetwork={selectedNetwork}
+          onNetworkChange={setSelectedNetwork}
+        />
 
         {/* Scope Generator Section */}
         <ScopeGenerator />
 
-        {/* Hub Contract Operations */}
-        <HubContractOperations 
+        {/* Verification Config Manager - Server-side transactions */}
+        <VerificationConfigManager 
           showToast={showToast}
           selectedCountries={selectedCountries}
           setSelectedCountries={setSelectedCountries}
           setShowCountryModal={setShowCountryModal}
+          selectedNetwork={selectedNetwork}
         />
+
+        {/* Config Reader Section */}
+        <ConfigReader selectedNetwork={selectedNetwork} />
               </div>
 
       {/* Toast Notification */}
