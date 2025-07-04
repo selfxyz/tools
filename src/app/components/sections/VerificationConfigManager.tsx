@@ -253,7 +253,7 @@ export default function VerificationConfigManager({
           setGeneratedConfigId(localConfigId);
           setConfigProgress('');
           setConfigSuccess('✅ Verification config deployed successfully via server!');
-          showToast(`✅ Config set! Tx: ${result.hash?.slice(0, 10)}...`, 'success');
+          showToast(`Config set! Tx: ${result.hash?.slice(0, 10)}...`, 'success');
         } else {
           throw new Error(result.error || 'Transaction failed');
         }
@@ -339,7 +339,7 @@ export default function VerificationConfigManager({
           setGeneratedConfigId(localConfigId);
           setConfigProgress('');
           setConfigSuccess('✅ Verification config deployed successfully via your wallet!');
-          showToast(`✅ Config set! Tx: ${tx.hash.slice(0, 10)}...`, 'success');
+          showToast(`Config set! Tx: ${tx.hash.slice(0, 10)}...`, 'success');
         } else {
           throw new Error('Transaction failed or was reverted');
         }
