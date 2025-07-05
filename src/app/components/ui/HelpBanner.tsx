@@ -1,6 +1,10 @@
 import Image from 'next/image';
 
-export default function HelpBanner() {
+interface HelpBannerProps {
+  onStartTutorial?: () => void;
+}
+
+export default function HelpBanner({ onStartTutorial }: HelpBannerProps) {
   return (
     <div className="max-w-5xl mx-auto mb-12 sm:mb-16 px-2 sm:px-0">
       <div className="bg-gradient-to-r from-[#5BFFB6]/10 via-blue-50 to-[#5BFFB6]/10 border border-[#5BFFB6]/30 rounded-xl p-4 sm:p-6">
@@ -14,16 +18,27 @@ export default function HelpBanner() {
               Join our active Telegram community for instant support, code examples, and direct access to the Self Protocol team!
             </p>
           </div>
-          <a
-            href="https://t.me/+d2TGsbkSDmgzODVi"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-[#5BFFB6] to-[#4AE6A0] text-black rounded-xl hover:shadow-lg transition-all font-semibold text-sm sm:text-base transform hover:scale-105 active:scale-95 hover:shadow-xl group"
-          >
-            <Image src="/telegram.webp" alt="Telegram" width={20} height={20} className="h-4 w-4 sm:h-5 sm:w-5 mr-2 sm:mr-3 rounded-full group-hover:animate-bounce" />
-            <span>Join Community</span>
-            <span className="ml-2 transform group-hover:translate-x-1 transition-transform">→</span>
-          </a>
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+            {onStartTutorial && (
+              <button
+                onClick={onStartTutorial}
+                className="flex items-center px-4 sm:px-5 py-2.5 sm:py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 hover:shadow-lg transition-all font-semibold text-sm sm:text-base transform hover:scale-105 active:scale-95"
+              >
+                <span className="mr-2">🎯</span>
+                <span>Start Tutorial</span>
+              </button>
+            )}
+            <a
+              href="https://t.me/+d2TGsbkSDmgzODVi"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-[#5BFFB6] to-[#4AE6A0] text-black rounded-xl hover:shadow-lg transition-all font-semibold text-sm sm:text-base transform hover:scale-105 active:scale-95 hover:shadow-xl group"
+            >
+              <Image src="/telegram.webp" alt="Telegram" width={20} height={20} className="h-4 w-4 sm:h-5 sm:w-5 mr-2 sm:mr-3 rounded-full group-hover:animate-bounce" />
+              <span>Join Community</span>
+              <span className="ml-2 transform group-hover:translate-x-1 transition-transform">→</span>
+            </a>
+          </div>
         </div>
       </div>
     </div>

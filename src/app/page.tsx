@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 // Import our components
 import NavigationHeader from './components/layout/NavigationHeader';
@@ -14,6 +14,8 @@ import ConfigReader from './components/sections/ConfigReader';
 import ToastNotification from './components/ui/ToastNotification';
 import CountrySelectionModal from './components/ui/CountrySelectionModal';
 import MobileTelegramButton from './components/ui/MobileTelegramButton';
+import TutorialOverlay from './components/ui/TutorialOverlay';
+import CelebrationAnimation from './components/ui/CelebrationAnimation';
 import Footer from './components/layout/Footer';
 
 // Constants
@@ -63,6 +65,47 @@ export default function Home() {
   const [showCountryModal, setShowCountryModal] = useState(false);
   const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
   const [countrySelectionError, setCountrySelectionError] = useState<string | null>(null);
+
+  // Tutorial state
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+
+  // Auto-start tutorial for new users
+  useEffect(() => {
+    const hasSeenTutorial = localStorage.getItem('selfprotocol-tutorial-completed');
+    const hasSkippedTutorial = localStorage.getItem('selfprotocol-tutorial-skipped');
+    
+    // Always auto-start tutorial for users who haven't completed or skipped it
+    if (!hasSeenTutorial && !hasSkippedTutorial) {
+      // Auto-start tutorial immediately for new users (Step 1)
+      setShowTutorial(true);
+    }
+  }, []);
+
+  // Tutorial handlers
+  const handleTutorialComplete = () => {
+    localStorage.setItem('selfprotocol-tutorial-completed', 'true');
+    setShowTutorial(false);
+    setShowCelebration(true);
+  };
+
+  const handleCelebrationComplete = () => {
+    setShowCelebration(false);
+    showToast('Tutorial completed! You can restart it anytime from the help menu.', 'success');
+  };
+
+  const handleStartTutorial = () => {
+    // Clear any previous tutorial state when manually starting
+    localStorage.removeItem('selfprotocol-tutorial-completed');
+    localStorage.removeItem('selfprotocol-tutorial-skipped');
+    setShowTutorial(true);
+  };
+
+  const handleTutorialSkip = () => {
+    localStorage.setItem('selfprotocol-tutorial-skipped', 'true');
+    setShowTutorial(false);
+    showToast('Tutorial skipped. You can restart it anytime from the help menu.', 'info');
+  };
 
   // Show toast notification
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -114,31 +157,39 @@ export default function Home() {
         <HeroSection showToast={showToast} />
 
         {/* Help Banner */}
-        <HelpBanner />
+        <HelpBanner onStartTutorial={handleStartTutorial} />
 
         {/* Quick Start Cards */}
         <QuickStartCards />
 
         {/* Network & Server Status */}
-        <NetworkSelector 
-          selectedNetwork={selectedNetwork}
-          onNetworkChange={setSelectedNetwork}
-        />
+        <div data-tutorial="network-selector">
+          <NetworkSelector 
+            selectedNetwork={selectedNetwork}
+            onNetworkChange={setSelectedNetwork}
+          />
+        </div>
 
         {/* Scope Generator Section */}
-        <ScopeGenerator />
+        <div data-tutorial="scope-generator">
+          <ScopeGenerator />
+        </div>
 
         {/* Verification Config Manager - Server-side transactions */}
-        <VerificationConfigManager 
-          showToast={showToast}
-          selectedCountries={selectedCountries}
-          setSelectedCountries={setSelectedCountries}
-          setShowCountryModal={setShowCountryModal}
-          selectedNetwork={selectedNetwork}
-        />
+        <div data-tutorial="verification-config">
+          <VerificationConfigManager 
+            showToast={showToast}
+            selectedCountries={selectedCountries}
+            setSelectedCountries={setSelectedCountries}
+            setShowCountryModal={setShowCountryModal}
+            selectedNetwork={selectedNetwork}
+          />
+        </div>
 
         {/* Config Reader Section */}
-        <ConfigReader selectedNetwork={selectedNetwork} />
+        <div data-tutorial="config-reader">
+          <ConfigReader selectedNetwork={selectedNetwork} />
+        </div>
               </div>
 
       {/* Toast Notification */}
@@ -159,6 +210,20 @@ export default function Home() {
                       setCountrySelectionError(null);
                     }}
         selectionError={countrySelectionError}
+      />
+
+      {/* Tutorial Overlay */}
+      <TutorialOverlay 
+        isOpen={showTutorial}
+        onClose={() => setShowTutorial(false)}
+        onComplete={handleTutorialComplete}
+        onSkip={handleTutorialSkip}
+      />
+
+      {/* Celebration Animation */}
+      <CelebrationAnimation 
+        isVisible={showCelebration}
+        onComplete={handleCelebrationComplete}
       />
 
       {/* Mobile Telegram Button */}

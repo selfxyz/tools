@@ -24,12 +24,12 @@ export default function ConfigReader({ selectedNetwork }: ConfigReaderProps) {
   // Network configuration
   const NETWORKS = {
     celo: {
-      name: 'Celo Mainnet',
+        name: 'Celo Mainnet',
       hubAddress: '0xe57F4773bd9c9d8b6Cd70431117d353298B9f5BF',
       rpcUrl: 'https://forno.celo.org'
     },
     alfajores: {
-      name: 'Celo Testnet (Alfajores)', 
+        name: 'Celo Testnet (Alfajores)',
       hubAddress: '0x68c931C9a534D37aa78094877F46fE46a49F1A51',
       rpcUrl: 'https://alfajores-forno.celo-testnet.org'
     }
@@ -65,7 +65,7 @@ export default function ConfigReader({ selectedNetwork }: ConfigReaderProps) {
 
       // Read the configuration
       const config = await contract.getVerificationConfigV2(configId);
-      
+
       setConfigData({
         olderThanEnabled: config.olderThanEnabled,
         olderThan: config.olderThan.toString(),
@@ -96,10 +96,10 @@ export default function ConfigReader({ selectedNetwork }: ConfigReaderProps) {
       <div className="mb-6">
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Configuration ID
-        </label>
+              </label>
         <div className="flex gap-3">
-          <input
-            type="text"
+            <input
+              type="text"
             value={configId}
             onChange={(e) => setConfigId(e.target.value)}
             placeholder="0x..."
@@ -115,10 +115,10 @@ export default function ConfigReader({ selectedNetwork }: ConfigReaderProps) {
                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
                 Reading...
               </div>
-            ) : (
-              'Read Config'
-            )}
-          </button>
+          ) : (
+            'Read Config'
+          )}
+        </button>
         </div>
       </div>
 
@@ -133,14 +133,14 @@ export default function ConfigReader({ selectedNetwork }: ConfigReaderProps) {
       {error && (
         <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
           {error}
-        </div>
-      )}
+          </div>
+        )}
 
       {/* Config Data */}
       {configData && (
         <div className="space-y-4">
           <h4 className="font-semibold text-gray-900 mb-4">Configuration Details:</h4>
-          
+            
           {/* Age Verification */}
           <div className="bg-white rounded-lg p-4 border border-gray-200">
             <h5 className="font-medium text-gray-800 mb-2">Age Verification</h5>
@@ -149,8 +149,8 @@ export default function ConfigReader({ selectedNetwork }: ConfigReaderProps) {
                 ? `Enabled: Minimum age ${configData.olderThan} years`
                 : 'Disabled: All ages allowed'
               }
-            </p>
-          </div>
+                </p>
+              </div>
 
           {/* Country Restrictions */}
           <div className="bg-white rounded-lg p-4 border border-gray-200">
@@ -170,18 +170,18 @@ export default function ConfigReader({ selectedNetwork }: ConfigReaderProps) {
                       <span className="text-xs text-gray-500 w-12">#{index + 1}:</span>
                       <div className="text-xs font-mono bg-gray-100 px-2 py-1 rounded flex-1 overflow-hidden">
                         {truncateAddress(packed, 8, 8)}
-                      </div>
+              </div>
                       <CopyButton 
                         text={packed}
                         variant="secondary"
                         size="sm"
                       />
-                    </div>
+              </div>
                   ))}
                 </div>
+                </div>
+              )}
               </div>
-            )}
-          </div>
 
           {/* OFAC Settings */}
           <div className="bg-white rounded-lg p-4 border border-gray-200">
@@ -203,9 +203,9 @@ export default function ConfigReader({ selectedNetwork }: ConfigReaderProps) {
                 {JSON.stringify(configData, null, 2)}
               </pre>
             </details>
+            </div>
           </div>
-        </div>
-      )}
+        )}
     </div>
   );
 } 

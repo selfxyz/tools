@@ -328,15 +328,15 @@ export default function VerificationConfigManager({
         // Execute transaction
         setConfigProgress('🔐 Transaction sent! Please wait for confirmation...');
         const tx = await contractWithSigner.setVerificationConfigV2(configForContract);
-        setTransactionHash(tx.hash);
-
+      setTransactionHash(tx.hash);
+      
         // Wait for confirmation
         setConfigProgress('⏳ Waiting for transaction confirmation...');
-        const receipt = await tx.wait();
+      const receipt = await tx.wait();
 
         if (receipt && receipt.status === 1) {
-          setTransactionStatus('confirmed');
-          setGeneratedConfigId(localConfigId);
+      setTransactionStatus('confirmed');
+      setGeneratedConfigId(localConfigId);
           setConfigProgress('');
           setConfigSuccess('✅ Verification config deployed successfully via your wallet!');
           showToast(`Config set! Tx: ${tx.hash.slice(0, 10)}...`, 'success');
@@ -440,7 +440,7 @@ export default function VerificationConfigManager({
 
   return (
     <div className="mb-12">
-              <div className="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-2xl p-6 sm:p-8 shadow-sm hover:shadow-md transition-shadow">
+      <div className="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-2xl p-6 sm:p-8 shadow-sm hover:shadow-md transition-shadow">
         {/* Network-specific info banner */}
         <div className={`mb-6 p-5 rounded-xl border-2 ${
           selectedNetwork === 'alfajores' 
@@ -747,7 +747,7 @@ export default function VerificationConfigManager({
               <div className="flex-1 min-w-0">
                 <h4 className="font-semibold text-red-800 mb-1">Deployment Failed</h4>
                 <p className="text-red-700 text-sm break-words leading-relaxed">
-                  {configError}
+            {configError}
                 </p>
                 <div className="mt-3 flex gap-2">
                   <button
@@ -770,7 +770,7 @@ export default function VerificationConfigManager({
               <div className="flex-1 min-w-0">
                 <h4 className="font-semibold text-green-800 mb-1">Deployment Successful</h4>
                 <p className="text-green-700 text-sm break-words leading-relaxed">
-                  {configSuccess}
+            {configSuccess}
                 </p>
                 <div className="mt-3 flex gap-2">
                   <button
