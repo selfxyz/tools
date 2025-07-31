@@ -28,10 +28,10 @@ export default function ScopeGenerator() {
     return validateEthereumAddress(addr) || validateHttpsUrl(addr);
   };
 
-  // Scope validation (small caps ASCII, max 20 chars)
+  // Scope validation (small caps ASCII, max 25 chars)
   const validateScope = (scopeValue: string): boolean => {
-    const scopeRegex = /^[a-z0-9\s\-_.,!?]*$/;
-    return scopeRegex.test(scopeValue) && scopeValue.length <= 20;
+    const scopeRegex = /^[a-z0-9\-]*$/;
+    return scopeRegex.test(scopeValue) && scopeValue.length <= 25;
   };
 
   // Check if address is valid (not empty and passes validation)
@@ -168,8 +168,8 @@ export default function ScopeGenerator() {
                 type="text"
                 value={scope}
                 onChange={handleScopeChange}
-                placeholder="enter scope (max 20 chars)"
-                maxLength={20}
+                placeholder="enter scope (max 25 chars)"
+                maxLength={25}
                 className={`w-full px-4 py-3 border-2 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 transition-all transform focus:scale-[1.02] hover:shadow-md ${scopeError
                   ? 'border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-200'
                   : isScopeValid
@@ -191,7 +191,7 @@ export default function ScopeGenerator() {
                 </p>
               )}
               <p className="text-sm text-gray-500 ml-auto">
-                {scope.length}/20 chars
+                {scope.length}/25 chars
               </p>
             </div>
           </div>
