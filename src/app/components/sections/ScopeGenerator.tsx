@@ -80,12 +80,12 @@ export default function ScopeGenerator() {
   const handleScopeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
 
-    // Only allow lowercase ASCII characters and limit to 20 chars
-    if (validateScope(value) && value.length <= 20) {
+    // Only allow lowercase ASCII characters and limit to 25 chars
+    if (validateScope(value) && value.length <= 25) {
       setScope(value);
       setScopeError('');
-    } else if (value.length > 20) {
-      setScopeError('Scope must be 20 characters or less');
+    } else if (value.length > 25) {
+      setScopeError('Scope must be 25 characters or less');
     } else {
       setScopeError('Scope must contain only lowercase ASCII characters');
     }
